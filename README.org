@@ -1,0 +1,5 @@
+#+TITLE: emacs.d
+#+AUTHOR: Brad Ison
+#+EMAIL: bison@xvdf.io
+
+My ~/.emacs.d direcotry.
