@@ -54,6 +54,7 @@
 (setq-default require-final-newline t)
 (setq-default show-trailing-whitespace t)
 (setq-default linum-format " %3d ")
+(setq-default tab-width 4)
 
 (size-indication-mode t)
 (column-number-mode t)
