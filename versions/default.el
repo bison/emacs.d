@@ -6,6 +6,7 @@
  ("company-mode" . "36e650acd681a3a15a96e3c074471e86bdeeb4d8")
  ("dap-mode" . "7001afd19c9aa14571d13c6fe0b0baa2cc56e8ea")
  ("dash.el" . "ea4a4cc7cce7c3b93862a22df8bca8b83052ccbf")
+ ("dockerfile-mode" . "d31f7685ebc5832d957e25070a930aa42984327d")
  ("emacs-async" . "86aef2c38e7d35e8509b7feeee3e989d825eba91")
  ("emacs-theme-gruvbox" . "0406f9661829ad347085c93d9921997f6c2933da")
  ("emacsmirror-mirror" . "7c3425545e416bdf5f5adbc75b230676896da0c8")
