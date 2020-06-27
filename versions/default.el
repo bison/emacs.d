@@ -40,6 +40,7 @@
  ("s.el" . "43ba8b563bee3426cead0e6d4ddc09398e1a349d")
  ("spinner" . "2daa167bec1c7566d662d48613a94453536b524a")
  ("straight.el" . "a7f94876b2bf96d2595706270be6630ecc94f0d3")
+ ("systemd-mode" . "51c148e09a129ddf33d95276aa0e89d4ef6f8dd2")
  ("transient" . "88d935c7cb9f175871c4cfea7eef2c0514d03b06")
  ("treemacs" . "7d6c0c6e410be00d3d36bec3baaa685e69b4fca1")
  ("treepy.el" . "306f7031d26e4ebfc9ff36614acdc6993f3e23c3")
