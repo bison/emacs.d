@@ -1,2 +1,4 @@
 (use-package dap-mode
-  :custom (dap-auto-configure-features '(sessions locals controls tooltip)))
+  :custom
+  (dap-breakpoints-file (bison/expand-cache-file "dap-breakpoints"))
+  (dap-auto-configure-features '(sessions locals controls tooltip)))
