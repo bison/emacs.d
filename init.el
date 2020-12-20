@@ -61,12 +61,15 @@
 (line-number-mode t)
 
 ;; Set the default font.
-(set-face-attribute
- 'default nil
- :family "Source Code Pro"
- :height 110
- :weight 'normal
- :width 'normal)
+(cond ((eq system-type 'darwin)
+	   (set-face-attribute
+		'default nil
+		:family "Monaco" :height 160)
+
+	   (eq system-type 'gnu/linux)
+		(set-face-attribute
+		 'default nil
+		 :family "Source Code Pro" :height 140)))
 
 ;; Window hopping shortcuts.
 (global-set-key (kbd "M-o")   (lambda () (interactive) (other-window  1)))
@@ -95,6 +98,7 @@
 (let* ((dicts '("en_US" "de_DE"))
        (bison/dict-ring (make-ring (length dicts))))
 
+  (setq ispell-program-name "hunspell")
   (setq ispell-dictionary (car dicts))
   (dolist (elem dicts) (ring-insert bison/dict-ring elem))
 

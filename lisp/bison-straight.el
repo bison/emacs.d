@@ -16,8 +16,9 @@
 (defun bison/setup-straight-versions-dir (base-dir)
   "Create link to versions directory in BASE-DIR."
   (let ((target (expand-file-name "versions" user-emacs-directory))
-	(link (expand-file-name "straight/versions" base-dir)))
-  (make-symbolic-link target link t)))
+		(link (expand-file-name "straight/versions" base-dir)))
+	(bison/mkdir (expand-file-name "straight" base-dir))
+	(make-symbolic-link target link t)))
 
 (defun bison/bootstrap-straight.el ()
   "Bootstrap straight.el package manager."

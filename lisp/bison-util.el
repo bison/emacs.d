@@ -26,7 +26,9 @@
   "The name of the current Emacs profile.")
 
 (defconst bison/emacs-cache-dir
-  (expand-file-name bison/emacs-profile "~/.cache/emacs/")
+  (if (eq system-type 'darwin)
+	  (expand-file-name bison/emacs-profile "~/Library/Caches/emacs/")
+	(expand-file-name bison/emacs-profile "~/.cache/emacs/"))
   "The path to the current Emacs cache directory.")
 
 (defun bison/load-directory (dir)
