@@ -7,6 +7,7 @@
  ("dap-mode" . "041db8eb7f0ceb9477ffff1730b5940814001158")
  ("dash.el" . "7629dae97d6648ef560569067801a3b91028c1c0")
  ("dockerfile-mode" . "6a56c1cc1713b501040b08fdbf0c4159a4fe95f9")
+ ("dtrace-script-mode" . "801af1ef16075d31a19830ebb8404bbf3a322f10")
  ("emacs-async" . "14f48de586b0977e3470f053b810d77b07ea427a")
  ("emacs-theme-gruvbox" . "d4129a18e6cf476a472b4dc7dc12e8aafc17beca")
  ("emacsmirror-mirror" . "73d68771488284cceb42f70fda551e0a516cb249")
