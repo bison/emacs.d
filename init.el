@@ -60,6 +60,12 @@
 (column-number-mode t)
 (line-number-mode t)
 
+;; Set macOS titlebar appearance.
+(when (eq system-type 'darwin)
+  (setq ns-use-proxy-icon nil)
+  (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
+  (add-to-list 'default-frame-alist '(ns-appearance . dark)))
+
 ;; Set the default font.
 (cond ((eq system-type 'darwin)
 	   (set-face-attribute
@@ -67,9 +73,9 @@
 		:family "Monaco" :height 160)
 
 	   (eq system-type 'gnu/linux)
-		(set-face-attribute
-		 'default nil
-		 :family "Source Code Pro" :height 140)))
+	   (set-face-attribute
+		'default nil
+		:family "Source Code Pro" :height 140)))
 
 ;; Window hopping shortcuts.
 (global-set-key (kbd "M-o")   (lambda () (interactive) (other-window  1)))
@@ -97,6 +103,10 @@
 ;; Quick cycle through ispell dictionaries.
 (let* ((dicts '("en_US" "de_DE"))
        (bison/dict-ring (make-ring (length dicts))))
+
+  (when (eq system-type 'darwin)
+	(setenv "DICPATH" (concat (getenv "HOME") "/Library/Spelling"))
+	(setenv "DICTIONARY" "en_US"))
 
   (setq ispell-program-name "hunspell")
   (setq ispell-dictionary (car dicts))
