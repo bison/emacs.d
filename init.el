@@ -70,9 +70,9 @@
 (cond ((eq system-type 'darwin)
 	   (set-face-attribute
 		'default nil
-		:family "Monaco" :height 160)
+		:family "Monaco" :height 160))
 
-	   (eq system-type 'gnu/linux)
+	  ((eq system-type 'gnu/linux)
 	   (set-face-attribute
 		'default nil
 		:family "Source Code Pro" :height 140)))
