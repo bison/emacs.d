@@ -1,6 +1,7 @@
 (use-package helm
   :bind
   (("M-x"     . helm-M-x)
+   ("C-c x"   . helm-M-x)
    ("M-y"     . helm-show-kill-ring)
    ("M-<f5>"  . helm-find-files)
    ("C-x C-f" . helm-find-files)
