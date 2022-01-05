@@ -8,6 +8,7 @@
  ("company-mode" . "6eeaf46b869552b7cb70cab7d4590120c64cc175")
  ("dap-mode" . "76cad34de8984f57c2b1e374e9c985cc7ec8dad0")
  ("dash.el" . "da167c51e9fd167a48d06c7c0ee8e3ac7abd9718")
+ ("deadgrep" . "aebaf72e35546fd235b4861399791814e4e4c7d8")
  ("dockerfile-mode" . "5db94549ce8b000ae35adf511c820ad228178052")
  ("dtrace-script-mode" . "801af1ef16075d31a19830ebb8404bbf3a322f10")
  ("el-get" . "9353309744e4f8a7c9b1adf22ec99536fb2146b0")
