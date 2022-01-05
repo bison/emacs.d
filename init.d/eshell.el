@@ -1,4 +1,7 @@
 (use-package eshell
+  :hook
+  (eshell-mode . (lambda () (setq show-trailing-whitespace nil)))
+
   :config
   (let* ((eshell-cache-dir (bison/expand-cache-file "eshell/"))
 	 (eshell-hist-file (expand-file-name "history" eshell-cache-dir))
