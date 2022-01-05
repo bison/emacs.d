@@ -11,6 +11,9 @@
   (lsp-session-file (bison/expand-cache-file "lsp-session-v1"))
 
   :config
+  (dolist (dir '("[/\\\\]vendor\\'"))
+	(add-to-list 'lsp-file-watch-ignored-directories dir))
+
   (lsp-register-client
    (make-lsp-client :new-connection (lsp-tramp-connection
 									 (lambda () (cons lsp-go-gopls-server-path
