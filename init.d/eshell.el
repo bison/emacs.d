@@ -1,6 +1,13 @@
 (use-package eshell
   :hook
-  (eshell-mode . (lambda () (setq show-trailing-whitespace nil)))
+  (eshell-mode
+   . (lambda ()
+	   (setq show-trailing-whitespace nil)
+
+	   (eshell-cmpl-initialize)
+	   (define-key eshell-mode-map [remap eshell-pcomplete] 'helm-esh-pcomplete)
+	   (define-key eshell-mode-map (kbd "M-s f") 'helm-eshell-prompts-all)
+	   (define-key eshell-mode-map (kbd "M-r") 'helm-eshell-history)))
 
   :config
   (let* ((eshell-cache-dir (bison/expand-cache-file "eshell/"))
