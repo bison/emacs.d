@@ -63,6 +63,7 @@
 ;; Set macOS titlebar appearance.
 (when (eq system-type 'darwin)
   (setq ns-use-proxy-icon nil)
+  (add-to-list 'default-frame-alist '(internal-border-width . 0))
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . dark)))
 
