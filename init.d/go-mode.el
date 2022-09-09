@@ -3,4 +3,4 @@
   (before-save . gofmt-before-save)
 
   :config
-  (setq gofmt-command "goimports"))
+  (setq gofmt-command "goimports -local"))
