@@ -63,6 +63,7 @@
 ;; Set macOS titlebar appearance.
 (when (eq system-type 'darwin)
   (setq ns-use-proxy-icon nil)
+  (set-fringe-mode 0)
   (add-to-list 'default-frame-alist '(internal-border-width . 0))
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . dark)))
@@ -129,6 +130,6 @@
 
 ;; Enable flyspell for source code comments.
 (add-hook 'prog-mode-hook 'flyspell-prog-mode)
-(add-hook 'prog-mode-hook 'linum-mode)
+(add-hook 'prog-mode-hook 'display-line-numbers-mode)
 
 ;;; init.el ends here
