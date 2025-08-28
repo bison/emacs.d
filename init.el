@@ -77,7 +77,7 @@
 	  ((eq system-type 'gnu/linux)
 	   (set-face-attribute
 		'default nil
-		:family "Source Code Pro" :height 140)))
+		:family "Roboto Mono" :height 120)))
 
 ;; Window hopping shortcuts.
 (global-set-key (kbd "M-o")   (lambda () (interactive) (other-window  1)))
