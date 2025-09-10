@@ -24,7 +24,7 @@
   "Bootstrap straight.el package manager."
 
   (defconst straight.el-install-url
-    "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el")
+    "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el")
 
   (defvar straight-base-dir bison/emacs-cache-dir)
   (defvar straight-use-package-by-default t)
