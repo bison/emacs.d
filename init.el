@@ -17,6 +17,7 @@
 (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
 
 (require 'ring)
+(require 'tramp)
 (require 'server)
 (require 'ispell)
 (require 'recentf)
@@ -131,5 +132,8 @@
 ;; Enable flyspell for source code comments.
 (add-hook 'prog-mode-hook 'flyspell-prog-mode)
 (add-hook 'prog-mode-hook 'display-line-numbers-mode)
+
+;; Fix tramp cache file path.
+(setq tramp-persistency-file-name (bison/expand-cache-file "tramp"))
 
 ;;; init.el ends here
