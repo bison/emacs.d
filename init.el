@@ -73,12 +73,12 @@
 (cond ((eq system-type 'darwin)
 	   (set-face-attribute
 		'default nil
-		:family "Roboto Mono" :height 160))
+		:family "JetBrains Mono" :height 160))
 
 	  ((eq system-type 'gnu/linux)
 	   (set-face-attribute
 		'default nil
-		:family "Roboto Mono" :height 120)))
+		:family "JetBrains Mono" :height 120)))
 
 ;; Window hopping shortcuts.
 (global-set-key (kbd "M-o")   (lambda () (interactive) (other-window  1)))
