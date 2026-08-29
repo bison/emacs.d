@@ -1,1 +1,5 @@
+/custom.el
+/docs/scratch/
 /eln-cache/
+/tree-sitter/
+*.elc
