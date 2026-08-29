@@ -34,6 +34,7 @@
 (require 'bison-ui)
 (require 'bison-completion)
 (require 'bison-editor)
+(require 'bison-spell)
 (require 'bison-project)
 (require 'bison-tools)
 (require 'bison-lang)

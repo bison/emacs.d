@@ -105,13 +105,15 @@
 (repeat-mode 1)
 (minibuffer-depth-indicate-mode 1)
 
-;; Mouse in the TTY; pixel scrolling in the GUI.  Both are frame-type
-;; checks done at frame creation so the daemon serves either kind.
+;; Frame-type specific setup, done at frame creation so the daemon
+;; serves either kind: pixel scrolling in the GUI; mouse support and no
+;; menu bar in the TTY (the macOS GUI keeps its menu bar, see early-init).
 (defun bison-defaults--setup-frame (frame)
   "Enable frame-type specific modes for FRAME."
   (with-selected-frame frame
     (if (display-graphic-p)
         (pixel-scroll-precision-mode 1)
+      (set-frame-parameter frame 'menu-bar-lines 0)
       (xterm-mouse-mode 1))))
 (add-hook 'after-make-frame-functions #'bison-defaults--setup-frame)
 (add-hook 'emacs-startup-hook
@@ -146,37 +148,6 @@
   (ediff-window-setup-function #'ediff-setup-windows-plain)
   :hook
   ((ediff-startup ediff-cleanup ediff-suspend) . ediff-toggle-wide-display))
-
-;;; Spelling
-
-(use-package ispell
-  :straight (:type built-in)
-  :defer t
-  :init
-  (when (eq system-type 'darwin)
-    (setenv "DICPATH" (expand-file-name "~/Library/Spelling"))
-    (setenv "DICTIONARY" "en_US"))
-  :custom
-  (ispell-program-name "hunspell")
-  (ispell-dictionary "en_US"))
-
-(defvar bison-ispell-dictionaries '("en_US" "de_DE")
-  "Dictionaries `bison-cycle-ispell-dictionary' rotates through.")
-
-(defun bison-cycle-ispell-dictionary ()
-  "Switch to the next dictionary in `bison-ispell-dictionaries'."
-  (interactive)
-  (let* ((current (or ispell-local-dictionary ispell-dictionary))
-         (rest (cdr (member current bison-ispell-dictionaries)))
-         (next (or (car rest) (car bison-ispell-dictionaries))))
-    (ispell-change-dictionary next)))
-
-(global-set-key [f9] #'bison-cycle-ispell-dictionary)
-
-(use-package flyspell
-  :straight (:type built-in)
-  :hook ((prog-mode . flyspell-prog-mode)
-         (text-mode . flyspell-mode)))
 
 (provide 'bison-defaults)
 ;;; bison-defaults.el ends here

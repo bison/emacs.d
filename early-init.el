@@ -29,7 +29,10 @@
   (startup-redirect-eln-cache (bison-cache-file "eln-cache/")))
 
 ;; Frame chrome, set here so the first frame is never drawn with it.
-(push '(menu-bar-lines . 0) default-frame-alist)
+;; macOS keeps the menu bar: it lives in the system bar, costs nothing.
+;; TTY frames drop it in `bison-defaults--setup-frame' regardless.
+(unless (eq system-type 'darwin)
+  (push '(menu-bar-lines . 0) default-frame-alist))
 (push '(tool-bar-lines . 0) default-frame-alist)
 (push '(vertical-scroll-bars) default-frame-alist)
 (setq frame-inhibit-implied-resize t

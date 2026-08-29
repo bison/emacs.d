@@ -5,14 +5,41 @@
 
 ;;; Commentary:
 
-;; project.el replaces projectile.  The one external caller that noticed
-;; is the mr post_checkout hook in the config repo, which used
-;; `projectile-add-known-project'; the equivalent is
-;; `project-remember-projects-under' (see docs/scratch report).
+;; project.el replaces projectile.  Projects are discovered from the
+;; <org>/<repo> layout under `bison-code-dir' at every startup, so the
+;; mr and worktrunk hooks in the config repo that used to call
+;; `projectile-add-known-project' can call `project-remember-projects-under'
+;; or simply `bison-project-discover' (see the docs/scratch report).
 
 ;;; Code:
 
 (require 'bison-lib)
+
+(defun bison-project-discover ()
+  "Register every repository under `bison-code-dir' with project.el.
+The layout is <org>/<repo>, with worktrees at <repo>/.worktrees/<branch>,
+so this looks exactly there rather than walking whole repositories the
+way `project-remember-projects-under' would -- which over a virtiofs
+mount is the difference between instant and minutes."
+  (interactive)
+  (let ((count 0))
+    (dolist (org (bison-project--subdirs bison-code-dir))
+      (dolist (repo (bison-project--subdirs org))
+        (dolist (dir (cons repo (bison-project--subdirs
+                                 (expand-file-name ".worktrees" repo))))
+          (when-let* ((project (project-current nil dir)))
+            (project-remember-project project 'no-write)
+            (setq count (1+ count))))))
+    (project--write-project-list)
+    (when (called-interactively-p 'interactive)
+      (message "%d projects under %s" count bison-code-dir))
+    count))
+
+(defun bison-project--subdirs (dir)
+  "Non-hidden subdirectories of DIR, or nil if DIR does not exist."
+  (when (file-directory-p dir)
+    (seq-filter #'file-directory-p
+                (directory-files dir t "\\`[^.]" t))))
 
 (use-package project
   :straight (:type built-in)
@@ -26,12 +53,12 @@
      (magit-project-status "Magit" ?m)
      (eat-project "Terminal" ?t)
      (project-eshell "Eshell" ?e)))
-  :config
-  ;; Registers every worktree under ~/Code the first time the project
-  ;; list is empty, so a fresh cache still gets a populated dashboard.
-  (unless (file-exists-p project-list-file)
-    (when (file-directory-p "~/Code")
-      (project-remember-projects-under "~/Code" t))))
+  :bind ("C-x p D" . bison-project-discover))
+
+;; Runs before dashboard draws (hooks added later run first) so the
+;; project list on it is current from the very first frame.
+(unless noninteractive
+  (add-hook 'emacs-startup-hook #'bison-project-discover))
 
 (use-package magit
   :bind (([f12] . magit-status)

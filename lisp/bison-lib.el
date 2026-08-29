@@ -38,5 +38,34 @@ throwaway run away from the real cache.")
 
 (bison-mkdir bison-cache-dir #o700)
 
+(defun bison-host-home ()
+  "Return the macOS host home when running in a guest, else nil.
+Both `container machine' VMs and Docker Sandboxes mount host directories
+at their host-absolute paths over virtiofs: the machine mounts the home
+itself, a sandbox mounts the org directory and the worktree under it.
+The mount source is an opaque tag in both, so the target is the handle:
+the shortest virtiofs mount under /Users/ gives the home.  There is no
+/proc/mounts on the host, which is what makes this return nil there."
+  (when (file-readable-p "/proc/mounts")
+    (let (home)
+      (dolist (line (split-string (with-temp-buffer
+                                    (insert-file-contents "/proc/mounts")
+                                    (buffer-string))
+                                  "\n" t))
+        (pcase-let ((`(,_src ,target ,fstype . ,_) (split-string line)))
+          (when (and (equal fstype "virtiofs")
+                     (string-match "\\`/Users/[^/]+" target))
+            (let ((candidate (match-string 0 target)))
+              (when (or (null home) (< (length candidate) (length home)))
+                (setq home candidate))))))
+      home)))
+
+(defconst bison-code-dir
+  (let ((host (bison-host-home)))
+    (if (and host (file-directory-p (expand-file-name "Code" host)))
+        (expand-file-name "Code" host)
+      (expand-file-name "~/Code")))
+  "Directory holding <org>/<repo> checkouts: the host's in a guest, else ~/Code.")
+
 (provide 'bison-lib)
 ;;; bison-lib.el ends here
