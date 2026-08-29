@@ -38,6 +38,13 @@ throwaway run away from the real cache.")
 
 (bison-mkdir bison-cache-dir #o700)
 
+;; Native-compiled files go with the rest of the cache.  Done here rather
+;; than in early-init so that every entry point -- the batch lint and test
+;; scripts included -- redirects before anything gets compiled; otherwise
+;; a `make lint' from inside ~/.emacs.d leaves an eln-cache/ in the checkout.
+(when (fboundp 'startup-redirect-eln-cache)
+  (startup-redirect-eln-cache (bison-cache-file "eln-cache/")))
+
 (defun bison-host-home ()
   "Return the macOS host home when running in a guest, else nil.
 Both `container machine' VMs and Docker Sandboxes mount host directories

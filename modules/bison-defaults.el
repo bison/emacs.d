@@ -29,8 +29,10 @@
 (use-package server
   :straight (:type built-in)
   :custom
-  (server-socket-dir bison-cache-dir)
-  (server-name (bison-cache-file "server")))
+  (server-name (bison-cache-file "server"))
+  :config
+  ;; A defvar, not a defcustom, so :custom would silently not apply.
+  (setq server-socket-dir bison-cache-dir))
 
 ;; Restore GC after startup; early-init raised it to speed up loading.
 (use-package gcmh

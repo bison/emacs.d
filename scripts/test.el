@@ -40,6 +40,55 @@
  (equal (cdr (assoc "\\.go\\'" auto-mode-alist)) 'go-ts-mode)
  "go files open in go-ts-mode")
 
+
+;; Nothing may write into the checkout.  Every variable here names a file
+;; or directory some package writes at runtime; load what defines them
+;; and check each resolves under the cache directory.
+(dolist (lib '(tramp transient recentf savehist bookmark eshell em-hist url nsm
+               project dape multiple-cursors org-id auto-save))
+  (require lib nil t))
+
+(dolist (var '(native-comp-eln-load-path
+               auto-save-list-file-prefix
+               backup-directory-alist
+               auto-save-file-name-transforms
+               bookmark-default-file
+               dape-default-breakpoints-file
+               eshell-directory-name
+               eshell-history-file-name
+               mc/list-file
+               nsm-settings-file
+               org-id-locations-file
+               project-list-file
+               recentf-save-file
+               savehist-file
+               server-socket-dir
+               straight-base-dir
+               tramp-auto-save-directory
+               tramp-persistency-file-name
+               transient-history-file
+               transient-levels-file
+               transient-values-file
+               url-configuration-directory
+               url-cookie-file))
+  (let* ((value (symbol-value var))
+         (path (pcase var
+                 ('native-comp-eln-load-path (car value))
+                 ;; Catch-all entries; /tmp exceptions come before them.
+                 ('backup-directory-alist (cdr (assoc "." value)))
+                 ('auto-save-file-name-transforms (cadr (assoc ".*" value)))
+                 (_ value))))
+    (bison-test--assert
+     (and (stringp path)
+          (string-prefix-p bison-cache-dir (expand-file-name path)))
+     (format "%s stays in the cache (%s)" var path))))
+
+;; The grammar installer must target the cache too, not the default
+;; <user-emacs-directory>/tree-sitter.
+(bison-test--assert
+ (string-prefix-p bison-cache-dir (car treesit-extra-load-path))
+ "tree-sitter grammars install into the cache")
+
 (message "test: ok on Emacs %s" emacs-version)
 
 ;;; test.el ends here

@@ -15,7 +15,7 @@
 ;;; Code:
 
 (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
-(require 'bison-lib)
+(require 'bison-lib)                    ; also redirects the eln cache
 
 ;; Defer GC during startup; bison-defaults restores a sane threshold.
 (setq gc-cons-threshold most-positive-fixnum
@@ -23,10 +23,6 @@
 
 ;; straight.el manages packages; keep package.el out of the way.
 (setq package-enable-at-startup nil)
-
-;; Keep native-compiled files with the rest of the cache.
-(when (fboundp 'startup-redirect-eln-cache)
-  (startup-redirect-eln-cache (bison-cache-file "eln-cache/")))
 
 ;; Frame chrome, set here so the first frame is never drawn with it.
 ;; macOS keeps the menu bar: it lives in the system bar, costs nothing.
