@@ -29,6 +29,7 @@ turn on diagnostics and line numbers elsewhere do not fire here."
   :hook (yaml-ts-mode . bison-lang-ops--yaml-setup))
 
 (use-package flymake-yamllint
+  :straight (flymake-yamllint :host github :repo "emacsmirror/flymake-yamllint")
   :hook (yaml-ts-mode . flymake-yamllint-setup))
 
 (use-package dockerfile-ts-mode

@@ -36,6 +36,7 @@
 
 ;; Restore GC after startup; early-init raised it to speed up loading.
 (use-package gcmh
+  :straight (gcmh :host github :repo "emacsmirror/gcmh")
   :hook (emacs-startup . gcmh-mode)
   :custom
   (gcmh-idle-delay 'auto)

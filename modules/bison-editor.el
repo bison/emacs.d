@@ -16,6 +16,7 @@
 ;; Emacs 31 adds `delete-trailing-whitespace-mode', but that is the
 ;; whole-buffer behaviour, which is exactly what this avoids.
 (use-package ws-butler
+  :straight (ws-butler :host github :repo "emacsmirror/ws-butler" :branch "master")
   :hook ((prog-mode text-mode conf-mode) . ws-butler-mode))
 
 (use-package whitespace

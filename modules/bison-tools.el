@@ -28,6 +28,7 @@
   :hook (emacs-startup . envrc-global-mode))
 
 (use-package eat
+  :straight (eat :host github :repo "emacsmirror/eat")
   :bind (("C-c t" . eat-project)
          ("C-c T" . eat))
   :hook (eshell-load . eat-eshell-mode)

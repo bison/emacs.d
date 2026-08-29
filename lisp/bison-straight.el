@@ -12,6 +12,14 @@
 ;; The repos, build products and lockfile symlink all live under the cache
 ;; directory, so `straight-base-dir' is the cache and the only thing in
 ;; ~/.emacs.d is this checkout.
+;;
+;; Every package is cloned from github.com: the recipe repositories are
+;; there anyway, and the handful of packages whose canonical home is
+;; GitLab, Codeberg or Savannah are taken from the emacsmirror
+;; organisation instead (see the :straight overrides in the modules).
+;; The exception is corfu-terminal (Codeberg, no mirror), which only
+;; Emacs 30.2 needs.  So: github.com always, codeberg.org until the VMs
+;; are on 31, and no dependence on Savannah's uptime.
 
 ;;; Code:
 

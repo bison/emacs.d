@@ -26,6 +26,12 @@
 (use-package nerd-icons
   :defer t)
 
+;; doom-modeline pulls shrink-path from GitLab; take the GitHub mirror so
+;; github.com is the only host this config ever clones from.
+(use-package shrink-path
+  :straight (shrink-path :host github :repo "emacsmirror/shrink-path")
+  :defer t)
+
 (use-package doom-modeline
   :hook (emacs-startup . doom-modeline-mode)
   :custom

@@ -123,6 +123,7 @@
 ;; Drop this block once the VMs are on 31.
 (unless (featurep 'tty-child-frames)
   (use-package corfu-terminal
+  :straight (corfu-terminal :host github :repo "emacsmirror/corfu-terminal")
     :after corfu
     :config (corfu-terminal-mode 1)))
 
