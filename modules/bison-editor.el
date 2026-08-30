@@ -19,9 +19,16 @@
   :straight (ws-butler :host github :repo "emacsmirror/ws-butler" :branch "master")
   :hook ((prog-mode text-mode conf-mode) . ws-butler-mode))
 
+(defun bison-editor--whitespace-mode-maybe ()
+  "Turn on `whitespace-mode' unless tabs are the indentation here.
+Tabs are marked because in most files here they are a mistake; Go
+indents with them by design, so the marks would be on every line."
+  (unless (derived-mode-p 'go-ts-mode 'go-mod-ts-mode 'go-work-ts-mode)
+    (whitespace-mode 1)))
+
 (use-package whitespace
   :straight (:type built-in)
-  :hook ((prog-mode conf-mode) . whitespace-mode)
+  :hook ((prog-mode conf-mode) . bison-editor--whitespace-mode-maybe)
   :custom
   (whitespace-style '(face trailing tabs tab-mark)))
 
