@@ -21,7 +21,18 @@
   :config
   (load-theme 'doom-gruvbox t)
   (doom-themes-visual-bell-config)
-  (doom-themes-org-config))
+  (doom-themes-org-config)
+
+  ;; The theme's modeline background #37302f has no close neighbour in
+  ;; the xterm-256 palette: Emacs approximates it to color-58, an olive
+  ;; green.  Terminals without truecolour -- tmux, the VMs over ssh --
+  ;; get an exact palette grey instead.  A display-conditional spec so
+  ;; a daemon serving both GUI and TTY frames renders each correctly.
+  (custom-set-faces
+   '(mode-line ((((class color) (min-colors 16777216))
+                 :background "#37302f" :foreground "#dfd2b8")
+                (t :background "#303030" :foreground "#d5c4a1")))
+   '(mode-line-active ((t :inherit mode-line)))))
 
 (use-package nerd-icons
   :defer t)
