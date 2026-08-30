@@ -49,7 +49,10 @@ throwaway run away from the real cache.")
 ;; than in early-init so that every entry point -- the batch lint and test
 ;; scripts included -- redirects before anything gets compiled; otherwise
 ;; a `make lint' from inside ~/.emacs.d leaves an eln-cache/ in the checkout.
-(when (fboundp 'startup-redirect-eln-cache)
+;; The function exists in every build; the variable only in builds with
+;; native compilation (CI's Emacs from nix-emacs-ci has none).
+(when (and (fboundp 'startup-redirect-eln-cache)
+           (boundp 'native-comp-eln-load-path))
   (startup-redirect-eln-cache (bison-cache-file "eln-cache/")))
 
 (defun bison-host-home ()

@@ -49,8 +49,9 @@
                project dape multiple-cursors org-id auto-save))
   (require lib nil t))
 
-(dolist (var '(native-comp-eln-load-path
-               auto-save-list-file-prefix
+(dolist (var (append (and (boundp 'native-comp-eln-load-path)
+                          '(native-comp-eln-load-path))
+             '(auto-save-list-file-prefix
                backup-directory-alist
                auto-save-file-name-transforms
                bookmark-default-file
@@ -71,7 +72,7 @@
                transient-levels-file
                transient-values-file
                url-configuration-directory
-               url-cookie-file))
+               url-cookie-file)))
   (let* ((value (symbol-value var))
          (path (pcase var
                  ('native-comp-eln-load-path (car value))
