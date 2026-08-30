@@ -1,6 +1,6 @@
 # emacs.d
 
-Brad Ison's Emacs configuration. Targets Emacs 31.1, still works on 30.2.
+My Emacs configuration.
 
 Runs two ways: GUI on macOS (emacs-plus, as a launchd daemon) and
 terminal-only inside Debian VMs. Everything the config writes at runtime
