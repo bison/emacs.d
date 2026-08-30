@@ -121,9 +121,9 @@
 ;; Emacs 31 draws child frames on TTYs, so corfu works in the VMs as-is.
 ;; 30.2 needs corfu-terminal, which repaints the popup with overlays.
 ;; Drop this block once the VMs are on 31.
+(declare-function corfu-terminal-mode "corfu-terminal")
 (unless (featurep 'tty-child-frames)
   (use-package corfu-terminal
-  :straight (corfu-terminal :host github :repo "emacsmirror/corfu-terminal")
     :after corfu
     :config (corfu-terminal-mode 1)))
 
