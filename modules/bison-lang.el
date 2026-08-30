@@ -135,6 +135,8 @@ Buffer-local, so it only ever applies to buffers with a live server."
   :bind (:map flymake-mode-map
               ("M-n"     . flymake-goto-next-error)
               ("M-p"     . flymake-goto-prev-error)
+              ("C-c ! n" . flymake-goto-next-error)
+              ("C-c ! p" . flymake-goto-prev-error)
               ("C-c ! l" . flymake-show-buffer-diagnostics)
               ("C-c ! L" . flymake-show-project-diagnostics))
   :custom
