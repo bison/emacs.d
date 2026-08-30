@@ -2,17 +2,11 @@
 
 My Emacs configuration.
 
-Runs two ways: GUI on macOS (emacs-plus, as a launchd daemon) and
-terminal-only inside Debian VMs. Everything the config writes at runtime
-lives in a cache directory outside this checkout
-(`~/Library/Caches/emacs/default` or `~/.cache/emacs/default`), and the
-daemon's socket is at `<cache>/server`.
-
 ## Layout
 
 | Path             | What                                                       |
 | ---------------- | ---------------------------------------------------------- |
-| `early-init.el`  | GC, frame chrome, cache paths -- runs before packages       |
+| `early-init.el`  | GC, frame chrome, cache paths -- runs before packages      |
 | `init.el`        | Loads `lisp/` then the `modules/` in order                 |
 | `lisp/`          | Bootstrap helpers (cache dir, straight.el)                 |
 | `modules/`       | One file per concern: defaults, ui, completion, ... lang   |
