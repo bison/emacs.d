@@ -81,6 +81,26 @@ it is on disk in a repository straight manages."
 
 (bison-straight-bootstrap)
 
+;; straight byte-compiles each package in a child `emacs -Q --batch', which
+;; never loads this configuration: `startup-redirect-eln-cache' is a
+;; variable and does not cross a process boundary, EMACSNATIVELOADPATH
+;; would not help since startup pushes <user-emacs-directory>/eln-cache on
+;; top of it, and the trampoline writer creates that directory when it is
+;; missing.  So a child that has to synthesize a subr trampoline -- which
+;; loading a package during byte-compilation makes it do -- writes .eln
+;; files into ~/.emacs.d, this checkout.  The environment variable is read
+;; by the child at startup and stops it writing them anywhere; the parent
+;; already read its own value, so this only ever affects subprocesses.
+(defun bison-straight--inhibit-child-eln (fn &rest args)
+  "Apply FN to ARGS with subprocess native compilation inhibited."
+  (let ((process-environment
+         (cons "EMACS_INHIBIT_AUTOMATIC_NATIVE_COMPILATION=1"
+               process-environment)))
+    (apply fn args)))
+
+(advice-add 'straight--build-compile :around
+            #'bison-straight--inhibit-child-eln)
+
 ;; use-package ships with Emacs 29+; straight adds its :straight keyword
 ;; once use-package is loaded.
 (require 'use-package)

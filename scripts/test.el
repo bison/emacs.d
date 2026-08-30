@@ -91,6 +91,19 @@
  (string-prefix-p bison-cache-dir (car treesit-extra-load-path))
  "tree-sitter grammars install into the cache")
 
+;; The variables above only cover paths this Emacs computes.  A package
+;; built in a subprocess -- straight byte-compiles in a child `emacs -Q'
+;; that never loads any of this -- leaves nothing in a variable to check,
+;; so look at the checkout itself.  The sandbox images prebake with this
+;; target, and there the checkout is ~/.emacs.d.
+(declare-function bison-clean-strays "clean" (root))
+(load (expand-file-name "scripts/clean.el" bison-test--root) nil t)
+
+(let ((strays (bison-clean-strays bison-test--root)))
+  (bison-test--assert (null strays)
+                      (format "nothing written into the checkout%s"
+                              (if strays (format " (found %s)" strays) ""))))
+
 (message "test: ok on Emacs %s" emacs-version)
 
 ;;; test.el ends here
