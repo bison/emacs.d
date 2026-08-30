@@ -4,14 +4,14 @@ My Emacs configuration.
 
 ## Layout
 
-| Path             | What                                                       |
-| ---------------- | ---------------------------------------------------------- |
-| `early-init.el`  | GC, frame chrome, cache paths -- runs before packages      |
-| `init.el`        | Loads `lisp/` then the `modules/` in order                 |
-| `lisp/`          | Bootstrap helpers (cache dir, straight.el)                 |
-| `modules/`       | One file per concern: defaults, ui, completion, ... lang   |
-| `versions/`      | straight.el lockfile                                       |
-| `scripts/`       | Batch entry points used by the Makefile                    |
+| Path             | What                                                      |
+| ---------------- | --------------------------------------------------------- |
+| `early-init.el`  | GC, frame chrome, cache paths -- runs before packages     |
+| `init.el`        | Loads `lisp/` then the `modules/` in order                |
+| `lisp/`          | Bootstrap helpers (cache dir, straight.el)                |
+| `modules/`       | One file per concern: defaults, ui, completion, ... lang  |
+| `versions/`      | straight.el lockfile                                      |
+| `scripts/`       | Batch entry points used by the Makefile                   |
 
 ## Make targets
 
