@@ -34,6 +34,13 @@
 
 (use-package doom-modeline
   :hook (emacs-startup . doom-modeline-mode)
+  ;; doom-gruvbox paints the buffer path and major mode bright green,
+  ;; which with `relative-to-project' paths is most of the modeline.
+  ;; These are gruvbox's own fg2 and fg4 neutrals instead; the yellow
+  ;; modified marker and cyan project directory stay as the accents.
+  :custom-face
+  (doom-modeline-buffer-path ((t (:inherit bold :foreground "#d5c4a1"))))
+  (doom-modeline-buffer-major-mode ((t (:inherit bold :foreground "#a89984"))))
   :custom
   (doom-modeline-height 28)
   (doom-modeline-buffer-file-name-style 'relative-to-project)
