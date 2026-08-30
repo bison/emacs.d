@@ -1,0 +1,45 @@
+# Lint and load the configuration on every Emacs version in use.
+#
+# Fork safety: `pull_request` (never `pull_request_target`) runs a fork's
+# PR with a read-only token and no secrets; the workflow needs neither.
+# Actions are pinned to commit SHAs, which Dependabot keeps current.
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Emacs ${{ matrix.emacs }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 30.2 is what the Debian VMs run; 31.1 is the target.
+        emacs: ["30.2", "31.1"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: purcell/setup-emacs@bdc64dc730ae1fcba200bfd52cb1b4cf6159cbe5  # v8.0
+        with:
+          version: ${{ matrix.emacs }}
+
+      # straight clones every package into the cache directory; keyed on
+      # the lockfile so a lockfile change is the only thing that refetches.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/emacs/default/straight
+          key: straight-${{ matrix.emacs }}-${{ hashFiles('versions/default.el') }}
+
+      - run: make lint
+      - run: make test

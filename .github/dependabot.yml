@@ -1,0 +1,10 @@
+# Dependabot has no ecosystem for Emacs packages, so versions/default.el is
+# maintained by hand with `make update`. This only tracks the SHA-pinned
+# actions in the workflows.
+---
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
