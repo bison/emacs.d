@@ -16,10 +16,7 @@
 ;; Sends every package's state file to <cache>/var and <cache>/etc, so
 ;; the per-package `-file' settings the old config carried are gone.
 (use-package no-littering
-  :demand t
-  :init
-  (setq no-littering-etc-directory (bison-cache-file "etc/")
-        no-littering-var-directory (bison-cache-file "var/"))
+  :demand t                             ; directories are set in bison-lib
   :config
   (no-littering-theme-backups))
 

@@ -38,6 +38,13 @@ throwaway run away from the real cache.")
 
 (bison-mkdir bison-cache-dir #o700)
 
+;; no-littering reads these when it loads, and it can load earlier than
+;; bison-defaults sets things up: byte-compiling a use-package form
+;; requires the package at compile time, before any :init runs.  Set
+;; here, they hold wherever no-littering ends up loading from.
+(defvar no-littering-etc-directory (bison-cache-file "etc/"))
+(defvar no-littering-var-directory (bison-cache-file "var/"))
+
 ;; Native-compiled files go with the rest of the cache.  Done here rather
 ;; than in early-init so that every entry point -- the batch lint and test
 ;; scripts included -- redirects before anything gets compiled; otherwise

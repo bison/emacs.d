@@ -65,6 +65,18 @@
   (bison-lint--checkdoc file)
   (bison-lint--compile file))
 
+;; Compiling loads packages, and a package that computes a path before
+;; the cache redirection applies writes into the checkout.  Anything
+;; new in the root that git does not know about is such a leak.
+(dolist (entry (directory-files bison-lint--root nil "\\`[^.]"))
+  (unless (or (member entry '("COPYING" "Makefile" "README.md" "docs"
+                              "early-init.el" "eshell" "init.el" "lisp"
+                              "modules" "scripts" "versions"))
+              (string-suffix-p ".el" entry))
+    (setq bison-lint--failures (1+ bison-lint--failures))
+    (message "lint: unexpected %s in the checkout (written during compile?)"
+             entry)))
+
 (if (zerop bison-lint--failures)
     (message "lint: ok (%d files)" (length bison-lint--files))
   (message "lint: %d failure(s)" bison-lint--failures)
