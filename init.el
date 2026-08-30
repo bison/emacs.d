@@ -37,6 +37,7 @@
 (require 'bison-spell)
 (require 'bison-project)
 (require 'bison-tools)
+(require 'bison-org)
 (require 'bison-lang)
 (require 'bison-lang-go)
 (require 'bison-lang-ops)

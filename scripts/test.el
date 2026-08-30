@@ -26,6 +26,7 @@
 
 (bison-test--assert (featurep 'straight) "straight bootstrapped")
 (bison-test--assert (featurep 'bison-lang-ops) "all modules loaded")
+(bison-test--assert (featurep 'bison-org) "org module loaded")
 (bison-test--assert (equal server-name (bison-cache-file "server"))
                     "server socket path matches the config repo")
 (bison-test--assert (string-prefix-p bison-cache-dir
