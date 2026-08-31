@@ -64,6 +64,14 @@ mount is the difference between instant and minutes."
   :bind (([f12] . magit-status)
          ("C-x g" . magit-status)
          ("C-c g" . magit-file-dispatch))
+  ;; `global-git-commit-mode' is on by default but inert until the
+  ;; git-commit library is loaded, and magit refuses to autoload it, so
+  ;; without this the first `git commit' after a restart lands in
+  ;; fundamental-mode.  emacs-startup-hook runs before the daemon
+  ;; accepts clients, so emacsclient can never win that race.
+  :init
+  (unless noninteractive
+    (add-hook 'emacs-startup-hook (lambda () (require 'magit))))
   :custom
   (magit-diff-refine-hunk t)
   (magit-save-repository-buffers 'dontask)
