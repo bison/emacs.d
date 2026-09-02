@@ -122,6 +122,31 @@ has no login, so the query falls through to the other `auth-sources'."
   :custom
   (forge-database-file (bison-cache-file "forge-database.sqlite")))
 
+;; browse-at-remote builds forge URLs without any credential, but its
+;; mode dispatch does not know magit-blame: in a blamed buffer it would
+;; open the file at point, not the chunk's commit.  The jump from a
+;; blame chunk to its commit page is a small command on top of its URL
+;; builder instead.
+(use-package browse-at-remote
+  :defer t)
+
+(declare-function magit-current-blame-chunk "magit-blame")
+(declare-function browse-at-remote--commit-url "browse-at-remote")
+
+(defun bison-blame-browse-commit ()
+  "Browse the commit of the blame chunk at point on its forge."
+  (interactive)
+  (require 'browse-at-remote)
+  (let ((rev (oref (or (magit-current-blame-chunk)
+                       (user-error "No blame chunk at point"))
+                   orig-rev)))
+    (when (string-match-p "\\`0+\\'" rev)
+      (user-error "Not yet committed"))
+    (browse-url (browse-at-remote--commit-url rev))))
+
+(with-eval-after-load 'magit-blame
+  (keymap-set magit-blame-read-only-mode-map "o" #'bison-blame-browse-commit))
+
 (use-package git-modes
   :defer t)
 

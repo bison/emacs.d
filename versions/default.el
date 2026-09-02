@@ -1,5 +1,6 @@
 (("Emacs-wgrep" . "49f09ab9b706d2312cab1199e1eeb1bcd3f27f6f")
  ("avy" . "933d1f36cca0f71e4acb5fac707e9ae26c536264")
+ ("browse-at-remote" . "38e5ffd77493c17c821fd88f938dbf42705a5158")
  ("cape" . "f0135abaf95a22b9fb2c951751a5d0733ce61bbd")
  ("closql" . "d382e7427f5d375ffc872851b049e9f9c4a43dfc")
  ("compat" . "d3be8ee1b12809d6171c4384139a531de71343a5")
