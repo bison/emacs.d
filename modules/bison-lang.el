@@ -94,7 +94,11 @@ sandbox builds what it needs on first launch."
               ("C-c l q" . eglot-shutdown)
               ("C-c l Q" . eglot-reconnect))
   :custom
-  (eglot-autoshutdown t)
+  ;; Leave servers running when the last buffer dies (the lsp-mode
+  ;; lsp-keep-workspace-alive behavior): autoshutdown tears down gopls
+  ;; synchronously inside kill-buffer, which hangs for seconds.
+  ;; C-c l q / eglot-shutdown-all reclaim servers manually.
+  (eglot-autoshutdown nil)
   (eglot-extend-to-xref t)
   (eglot-report-progress nil)
   ;; The events buffer is a debugging aid and a memory sink otherwise.
