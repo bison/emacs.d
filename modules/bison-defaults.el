@@ -105,6 +105,53 @@
 (repeat-mode 1)
 (minibuffer-depth-indicate-mode 1)
 
+;; tmux (`extended-keys on') and Ghostty report modified keys in xterm's
+;; `modifyOtherKeys' encoding, CSI 27 ; modifier ; code ~.  Emacs decodes
+;; only a hand-written whitelist of those combinations, so anything
+;; outside it half-matches in `input-decode-map' and the tail of the
+;; sequence self-inserts -- Shift+SPC arrives as "\e[27;2;32~", matches
+;; as far as "\e[27;2;3", and leaves a stray "2~" in the buffer.  Filling
+;; in the rest of the space fixes that and gets C-M-<letter>, C-RET and
+;; the other combinations the whitelist misses along with it.
+(defconst bison-defaults--extended-key-names
+  '((8 . backspace) (9 . tab) (13 . return) (27 . escape))
+  "Codes a terminal reports numerically that Emacs names symbolically.")
+
+(defun bison-defaults--extended-key (modifier code)
+  "Return the event a terminal means by MODIFIER and CODE.
+MODIFIER is the 1-based modifier parameter of a CSI sequence.  For
+printable keys the terminal has already applied shift to CODE, so shift
+folds into the character instead of staying a modifier: that is what
+makes Shift+SPC an ordinary space rather than an undefined S-SPC."
+  (let* ((bits (1- modifier))
+         (shift (/= 0 (logand bits 1)))
+         (named (alist-get code bison-defaults--extended-key-names))
+         (printable (and (not named) (<= 32 code 126)))
+         (base (cond (named named)
+                     ((and shift printable) (upcase code))
+                     (t code)))
+         (mods (append (and shift (not printable) '(shift))
+                       (and (/= 0 (logand bits 2)) '(meta))
+                       (and (/= 0 (logand bits 4)) '(control))
+                       (and (/= 0 (logand bits 8)) '(super)))))
+    (event-convert-list (append mods (list base)))))
+
+(defun bison-defaults--decode-extended-keys ()
+  "Decode the full extended-key space on the selected frame's terminal.
+`input-decode-map' is terminal-local, so this runs once per terminal."
+  (unless (terminal-parameter nil 'bison-extended-keys)
+    (dolist (modifier (number-sequence 2 16))
+      (dolist (code (append '(8 9 13 27) (number-sequence 32 126)))
+        (when-let* ((event (ignore-errors
+                             (bison-defaults--extended-key modifier code))))
+          ;; Both spellings: `extended-keys-format' picks between them,
+          ;; and the whitelist Emacs ships covers each in the same way.
+          (dolist (seq (list (format "\e[27;%d;%d~" modifier code)
+                             (format "\e[%d;%du" code modifier)))
+            (ignore-errors
+              (define-key input-decode-map seq (vector event)))))))
+    (set-terminal-parameter nil 'bison-extended-keys t)))
+
 ;; Frame-type specific setup, done at frame creation so the daemon
 ;; serves either kind: pixel scrolling in the GUI; mouse support and no
 ;; menu bar in the TTY (the macOS GUI keeps its menu bar, see early-init).
@@ -114,6 +161,7 @@
     (if (display-graphic-p)
         (pixel-scroll-precision-mode 1)
       (set-frame-parameter frame 'menu-bar-lines 0)
+      (bison-defaults--decode-extended-keys)
       (xterm-mouse-mode 1))))
 (add-hook 'after-make-frame-functions #'bison-defaults--setup-frame)
 (add-hook 'emacs-startup-hook
