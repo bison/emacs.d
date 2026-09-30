@@ -74,9 +74,29 @@ mount is the difference between instant and minutes."
     (add-hook 'emacs-startup-hook (lambda () (require 'magit))))
   :custom
   (magit-diff-refine-hunk t)
+  ;; Paint hunks with the file's own font-lock faces instead of flat
+  ;; red/green text; the +/- column carries the side colour instead.
+  ;; Experimental and synchronous, so a huge diff pauses on render.
+  ;; The foreground option is read when magit-diff defines its faces,
+  ;; hence a restart, not a reload, after changing it.
+  (magit-diff-fontify-hunk 'all)
+  (magit-diff-specify-hunk-foreground nil)
+  (magit-diff-use-indicator-faces t)
   (magit-save-repository-buffers 'dontask)
   (magit-display-buffer-function
-   #'magit-display-buffer-same-window-except-diff-v1))
+   #'magit-display-buffer-same-window-except-diff-v1)
+  :config
+  ;; doom-gruvbox re-adds a red/green foreground to the hunk faces and
+  ;; bolds the current hunk, which would tint the tokens font-lock
+  ;; leaves alone and embolden the rest.  Keep only its faint
+  ;; backgrounds.  Not `:custom-face': that sets the defface spec,
+  ;; which a theme spec replaces wholesale; `custom-set-faces' layers
+  ;; on top of the theme instead.
+  (custom-set-faces
+   '(magit-diff-added ((t :foreground unspecified)))
+   '(magit-diff-removed ((t :foreground unspecified)))
+   '(magit-diff-added-highlight ((t :foreground unspecified :weight unspecified)))
+   '(magit-diff-removed-highlight ((t :foreground unspecified :weight unspecified)))))
 
 ;; forge resolves its API token through auth-source (machine
 ;; api.github.com, login "<user>^forge").  Answer that query from the
