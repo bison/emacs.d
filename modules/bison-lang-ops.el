@@ -75,10 +75,35 @@ turn on diagnostics and line numbers elsewhere do not fire here."
 
 (defvar-local bison-markdownlint--process nil)
 
+(defvar bison-markdownlint-prompt-disabled-rules '("MD041" "MD047" "MD013")
+  "Markdownlint rules ignored in Claude Code prompt buffers.
+Prompts are fragments, not documents: no leading heading, no
+trailing newline, no line-length policing.")
+
+(defun bison-claude-prompt-buffer-p ()
+  "Return non-nil if this buffer visits a Claude Code prompt file.
+Claude Code's ctrl+g writes the prompt to a temporary
+claude-prompt-<uuid>.md and opens it in $EDITOR."
+  (and buffer-file-name
+       (string-match-p (rx bos "claude-prompt-" (+ (any hex "-")) ".md" eos)
+                       (file-name-nondirectory buffer-file-name))))
+
 (defun bison-markdownlint--command ()
-  "Return the linter command line reading Markdown from stdin, or nil."
-  (cond ((executable-find "markdownlint") '("markdownlint" "--stdin"))
-        ((executable-find "mdl") '("mdl"))))
+  "Return the linter command line reading Markdown from stdin, or nil.
+Rules in `bison-markdownlint-prompt-disabled-rules' are turned off
+in Claude Code prompt buffers."
+  (let ((disabled (and (bison-claude-prompt-buffer-p)
+                       bison-markdownlint-prompt-disabled-rules)))
+    (cond ((executable-find "markdownlint")
+           ;; --disable is variadic, so it has to come last.
+           `("markdownlint" "--stdin"
+             ,@(and disabled (cons "--disable" disabled))))
+          ((executable-find "mdl")
+           `("mdl"
+             ,@(and disabled
+                    (list "--rules"
+                          (mapconcat (lambda (r) (concat "~" r))
+                                     disabled ","))))))))
 
 (defun bison-markdownlint--parse (source)
   "Return flymake diagnostics for SOURCE from the linter output in this buffer."
@@ -135,7 +160,8 @@ Calls REPORT-FN with the diagnostics."
 (use-package markdown-mode
   :mode (("\\.md\\'" . markdown-mode)
          ("README\\.md\\'" . gfm-mode))
-  :hook (markdown-mode . bison-markdownlint-setup)
+  :hook ((markdown-mode . bison-markdownlint-setup)
+         (markdown-mode . auto-fill-mode))
   :custom
   (markdown-fontify-code-blocks-natively t)
   (markdown-command "markdown"))
