@@ -51,6 +51,7 @@ mount is the difference between instant and minutes."
      (consult-ripgrep "Ripgrep" ?g)
      (project-find-dir "Find dir" ?d)
      (magit-project-status "Magit" ?m)
+     (bison-space "Space" ?s)
      (eat-project "Terminal" ?t)
      (project-eshell "Eshell" ?e)))
   :bind ("C-x p D" . bison-project-discover))

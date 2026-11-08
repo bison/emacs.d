@@ -40,6 +40,14 @@
 (bison-test--assert
  (equal (cdr (assoc "\\.go\\'" auto-mode-alist)) 'go-ts-mode)
  "go files open in go-ts-mode")
+(bison-test--assert
+ (let ((repo (expand-file-name "org/repo/" bison-code-dir)))
+   (and (equal (bison-space--names repo) '("org" "repo" "repo"))
+        (equal (bison-space--names (concat repo ".worktrees/fix-ci/"))
+               '("org" "repo" "fix-ci"))
+        (equal (bison-space--names "/elsewhere/repo/")
+               '("other" "repo" "repo"))))
+ "spaces group by org, then repository")
 
 
 ;; Nothing may write into the checkout.  Every variable here names a file
