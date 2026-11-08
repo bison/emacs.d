@@ -52,18 +52,46 @@ cannot work inside eshell anyway."
       (when (derived-mode-p 'eshell-mode)
         (bison-eshell-export-editor)))))
 
+(defun bison-eat-export-visual (process)
+  "Export $VISUAL into eat PROCESS, as `with-editor-export-editor' does $EDITOR."
+  (with-editor-export-editor "VISUAL" process))
+
 (use-package eat
   :straight (eat :host github :repo "emacsmirror/eat")
   :bind (("C-c t" . eat-project)
          ("C-c T" . eat))
   ;; `git commit' inside eat opens in this Emacs.  with-editor handles
   ;; the process argument `eat-exec-hook' passes, and the function is
-  ;; autoloaded, so this costs nothing until a terminal spawns.
+  ;; autoloaded, so this costs nothing until a terminal spawns.  $VISUAL
+  ;; too, since git consults it before $EDITOR.
   :hook ((eshell-load . eat-eshell-mode)
-         (eat-exec . with-editor-export-editor))
+         (eat-exec . with-editor-export-editor)
+         (eat-exec . bison-eat-export-visual))
   :custom
   (eat-kill-buffer-on-exit t)
   (eat-enable-mouse t))
+
+(defun bison-ghostel-export-editor ()
+  "Point $EDITOR and $VISUAL in the terminal about to spawn at this Emacs.
+Runs from `ghostel-pre-spawn-hook', where `process-environment' is
+bound to the child's environment, so with-editor's `setenv' lands
+there.  Both variables, for the reason given in
+`bison-eshell-export-editor'."
+  (with-editor-export-editor "EDITOR")
+  (with-editor-export-editor "VISUAL"))
+
+;; ghostel: libghostty-vt in a native module.  Trial run alongside eat;
+;; fetch the module once with `ghostel-download-module'.
+(use-package ghostel
+  :bind (("C-c v" . ghostel-project)
+         ("C-c V" . ghostel))
+  ;; Only reaches programs if the shell rc leaves an inherited
+  ;; $EDITOR alone when $INSIDE_EMACS is set.
+  :hook (ghostel-pre-spawn . bison-ghostel-export-editor)
+  :custom
+  ;; Outside straight/build/, which straight wipes on every rebuild.
+  (ghostel-module-directory (bison-cache-file "ghostel/"))
+  (ghostel-module-auto-install 'ask))
 
 (use-package eshell
   :straight (:type built-in)

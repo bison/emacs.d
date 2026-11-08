@@ -27,6 +27,7 @@
  ("flymake-yamllint" . "34fb579087a1d97cabd001dbf3f44ea48914bcde")
  ("forge" . "0144e843c51a76273b15c435a5eca0565c8c9604")
  ("gcmh" . "0089f9c3a6d4e9a310d0791cf6fa8f35642ecfd9")
+ ("ghostel" . "4bed2ceaa493927021c6525d34e18ce53524d9dc")
  ("ghub" . "0ce466e35af5c1a6d743a6481a9d4e33cd7a40c3")
  ("git-modes" . "f8a453725586c8225e47afca4c8cbc2c5585bf33")
  ("gnu-elpa-mirror" . "5d18d900916c898d81c24116087b7d0e77d9f77e")
