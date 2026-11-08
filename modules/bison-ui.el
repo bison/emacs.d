@@ -116,5 +116,37 @@
 
 (setq frame-title-format '("%b -- Emacs"))
 
+;; Font size for every buffer and frame at once, on the keys Ghostty and
+;; most macOS apps use; the stock s-= family scales one buffer only.
+;; `global-text-scale-adjust' picks its direction from the key that
+;; invoked it, and ghostel advises it to refit its terminals.  It also
+;; arms a transient map so a following bare -, = or 0 adjusts again --
+;; dropped here, so that text typed right after goes where it should.
+(defun bison-font-size--adjust (key)
+  "Adjust the global font size as `global-text-scale-adjust' does for KEY."
+  (let ((last-command-event key))
+    (cl-letf (((symbol-function 'set-transient-map) #'ignore))
+      (global-text-scale-adjust 1))))
+
+(defun bison-font-size-increase ()
+  "Increase the font size everywhere."
+  (interactive)
+  (bison-font-size--adjust ?=))
+
+(defun bison-font-size-decrease ()
+  "Decrease the font size everywhere."
+  (interactive)
+  (bison-font-size--adjust ?-))
+
+(defun bison-font-size-reset ()
+  "Reset the font size everywhere."
+  (interactive)
+  (bison-font-size--adjust ?0))
+
+(global-set-key (kbd "s-=") #'bison-font-size-increase)
+(global-set-key (kbd "s-+") #'bison-font-size-increase)
+(global-set-key (kbd "s--") #'bison-font-size-decrease)
+(global-set-key (kbd "s-0") #'bison-font-size-reset)
+
 (provide 'bison-ui)
 ;;; bison-ui.el ends here
