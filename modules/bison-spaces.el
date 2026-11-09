@@ -115,7 +115,11 @@ REPO for the main checkout."
                        (directory-file-name (file-name-directory parent))
                      dir))
          (org-dir (directory-file-name (file-name-directory repo-dir))))
-    (list (if (file-in-directory-p org-dir bison-code-dir)
+    ;; Compared as strings: `file-in-directory-p' is nil whenever the
+    ;; directory doesn't exist, as `bison-code-dir' doesn't in CI.
+    (list (if (string-prefix-p
+               (file-name-as-directory (file-truename bison-code-dir))
+               (file-name-as-directory (file-truename org-dir)))
               (file-name-nondirectory org-dir)
             "other")
           (file-name-nondirectory repo-dir)
@@ -1263,7 +1267,15 @@ is posted from a timer, off the terminal output path."
   "Return the width of STRING in pixels as the current buffer draws it."
   (if (string-empty-p string)
       0
-    (string-pixel-width string (current-buffer))))
+    ;; Emacs 30's `string-pixel-width' takes no buffer to measure as;
+    ;; carry over the face remappings, which is what matters here.
+    (static-if (>= emacs-major-version 31)
+        (string-pixel-width string (current-buffer))
+      (let ((remapping face-remapping-alist))
+        (with-temp-buffer
+          (setq-local face-remapping-alist remapping)
+          (insert string)
+          (car (buffer-text-pixel-size nil nil t)))))))
 
 (defun bison-space--right-gap ()
   "Return the pixels to leave right of the status glyphs."

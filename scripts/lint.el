@@ -34,7 +34,10 @@
 
 (defun bison-lint--checkdoc (file)
   "Run checkdoc over FILE, counting each complaint as a failure."
-  (let ((checkdoc-create-error-function
+  ;; The verb check misreads nouns ("runs of characters") as verbs; Emacs
+  ;; 31 turns it off by default, so match that on Emacs 30.
+  (let ((checkdoc-verb-check-experimental-flag nil)
+        (checkdoc-create-error-function
          (lambda (text start _end &optional _unfixable)
            (setq bison-lint--failures (1+ bison-lint--failures))
            (message "%s:%d: checkdoc: %s" file
