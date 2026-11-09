@@ -71,6 +71,22 @@ cannot work inside eshell anyway."
   (eat-kill-buffer-on-exit t)
   (eat-enable-mouse t))
 
+(defvar bison-terminal-font-family "JetBrainsMono Nerd Font Mono"
+  "Font family for text in terminals: JetBrains Mono with Nerd Font icons.
+The same letters as the frame's JetBrains Mono, plus icons sized to its
+cells (Brewfile: font-jetbrains-mono-nerd-font).")
+
+(defun bison-ghostel-nerd-font ()
+  "Draw this terminal in `bison-terminal-font-family'.
+Programs in terminals print Nerd Font icons with no font named --
+Claude Code's status line, the tmux bar's powerline arrows.  Left to
+Emacs's fallback they came from the proportional Symbols Nerd Font,
+too wide for a cell, or for Material Design's icons past U+FFFF from
+nothing.  From the terminal's own font, they sit in the grid.  Not set
+for those ranges globally: a fontset entry would also beat the font
+nerd-icons names, and shrink the spaces sidebar's icons with it."
+  (face-remap-add-relative 'default :family bison-terminal-font-family))
+
 (defun bison-ghostel-export-editor ()
   "Point $EDITOR and $VISUAL in the terminal about to spawn at this Emacs.
 Runs from `ghostel-pre-spawn-hook', where `process-environment' is
@@ -87,7 +103,8 @@ there.  Both variables, for the reason given in
          ("C-c V" . ghostel))
   ;; Only reaches programs if the shell rc leaves an inherited
   ;; $EDITOR alone when $INSIDE_EMACS is set.
-  :hook (ghostel-pre-spawn . bison-ghostel-export-editor)
+  :hook ((ghostel-pre-spawn . bison-ghostel-export-editor)
+         (ghostel-mode . bison-ghostel-nerd-font))
   :custom
   ;; Outside straight/build/, which straight wipes on every rebuild.
   (ghostel-module-directory (bison-cache-file "ghostel/"))
