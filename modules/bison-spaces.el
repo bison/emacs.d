@@ -832,6 +832,10 @@ The space stays open if wt fails."
   "Font height of the sidebar, relative to other buffers."
   :type 'number)
 
+(defcustom bison-space-icon-scale 0.85
+  "Size of the sidebar's harness and status icons, relative to the text."
+  :type 'number)
+
 (defcustom bison-space-sidebar-right-padding 10
   "Pixels between the status glyphs and the sidebar's right edge.
 At least the width of a space, which the line's newline needs: a
@@ -1105,6 +1109,11 @@ A status from a worktree carries its name as :space, for the hover text."
            (propertize (format "%d%%" progress) 'face face))
           ((require 'nerd-icons nil t)
            (let ((glyph (copy-sequence (nerd-icons-octicon icon))))
+             ;; In front, as for harness icons: nerd-icons gives the
+             ;; glyph its own :height 1.0.
+             (add-face-text-property 0 (length glyph)
+                                     `(:height ,bison-space-icon-scale)
+                                     nil glyph)
              (add-face-text-property 0 (length glyph) face t glyph)
              glyph))
           (t (propertize char 'face face)))))
@@ -1399,10 +1408,6 @@ AGE is the seconds since the agent's state last changed."
                       (cons (car section)
                             (seq-sort-by (lambda (row) (nth 2 row)) #'< in))))
                   bison-space--agent-sections))))
-
-(defcustom bison-space-icon-scale 0.85
-  "Size of harness icons, relative to the text beside them."
-  :type 'number)
 
 (defcustom bison-space-icon-colors t
   "Non-nil to draw harness icons in their brands' colours.
