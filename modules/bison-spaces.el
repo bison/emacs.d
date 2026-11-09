@@ -829,6 +829,17 @@ side width must be at least 1, and is invisible against the panel.")
     (t :inherit highlight :extend t))
   "Face of the row under the mouse.")
 
+(defface bison-space-sidebar-divider
+  '((((class color) (min-colors 88))
+     :background "#3c3836" :extend t :height 0.1)
+    (t :inherit shadow :strike-through t :extend t))
+  "Face of the thin rule between sidebar sections.
+Its height makes the line it fills a pixel or two tall.")
+
+(defface bison-space-sidebar-gap
+  '((t :height 0.5))
+  "Face of the half-height lines either side of a divider.")
+
 (defface bison-space-sidebar-hl-line
   '((((class color) (min-colors 88)) :background "#32302f" :extend t)
     (t :inherit hl-line))
@@ -1104,13 +1115,151 @@ happens while the sidebar is hidden."
   (max bison-space-sidebar-right-padding
        (bison-space--pixel-width " ")))
 
+;;;; Sidebar: git
+
+;; Each space's row carries a short git tail, as the Herdr app's spaces
+;; list does: only what is unusual -- the branch when it is neither
+;; main/master nor the space's own name (a worktree is named after its
+;; branch), commits ahead and behind -- plus the count of uncommitted
+;; files.  `git status' runs in the background, at most every
+;; `bison-space-git-interval' seconds per space, when the sidebar draws.
+
+(defcustom bison-space-git-interval 10
+  "Seconds before a space's git status is asked again, at the next redraw."
+  :type 'number)
+
+(defface bison-space-sidebar-git
+  '((((class color) (min-colors 88)) :foreground "#7c6f64" :height 0.85)
+    (t :inherit shadow))
+  "Face of the git tail on a space's row: smaller than the row's text.")
+
+(defface bison-space-sidebar-git-ahead
+  '((((class color) (min-colors 88)) :foreground "#98971a")
+    (t :inherit success))
+  "Face of the commits-ahead count, on top of `bison-space-sidebar-git'.")
+
+(defface bison-space-sidebar-git-behind
+  '((((class color) (min-colors 88)) :foreground "#cc241d")
+    (t :inherit error))
+  "Face of the commits-behind count, on top of `bison-space-sidebar-git'.")
+
+(defface bison-space-sidebar-git-dirty
+  '((((class color) (min-colors 88)) :foreground "#d79921")
+    (t :inherit warning))
+  "Face of the uncommitted-files count, on top of `bison-space-sidebar-git'.")
+
+(defvar bison-space--git (make-hash-table :test #'equal)
+  "Git status by space root: (:branch :ahead :behind :dirty :time :pending).")
+
+(defun bison-space--git-parse ()
+  "Parse `git status --porcelain=v2 --branch' in the current buffer."
+  (let ((info (list :branch nil :ahead 0 :behind 0 :dirty 0)))
+    (goto-char (point-min))
+    (while (not (eobp))
+      (let ((line (buffer-substring-no-properties (point) (line-end-position))))
+        (cond ((string-prefix-p "# branch.head " line)
+               (plist-put info :branch (substring line 14)))
+              ((string-match "\\`# branch\\.ab \\+\\([0-9]+\\) -\\([0-9]+\\)" line)
+               (plist-put info :ahead (string-to-number (match-string 1 line)))
+               (plist-put info :behind (string-to-number (match-string 2 line))))
+              ((string-match-p "\\`[12u?] " line)
+               (plist-put info :dirty (1+ (plist-get info :dirty))))))
+      (forward-line 1))
+    info))
+
+(defun bison-space--git-refresh (root)
+  "Ask git for ROOT's status in the background; redraw if it changed."
+  (let ((old (gethash root bison-space--git))
+        (out (generate-new-buffer " *bison-space-git*"))
+        (default-directory root))
+    (puthash root (plist-put (copy-sequence old) :pending t) bison-space--git)
+    (condition-case nil
+        (make-process
+         :name "bison-space-git"
+         :buffer out
+         :noquery t
+         :connection-type 'pipe
+         ;; Writes nothing under .git: no index lock, no fsmonitor.
+         :command '("git" "--no-optional-locks" "-c" "core.fsmonitor=false"
+                    "status" "--porcelain=v2" "--branch")
+         :sentinel
+         (lambda (proc _event)
+           (unless (process-live-p proc)
+             (let ((info (and (zerop (process-exit-status proc))
+                              (with-current-buffer out (bison-space--git-parse)))))
+               (kill-buffer out)
+               (puthash root (append (list :time (float-time)) info)
+                        bison-space--git)
+               (unless (equal (bison-space--git-strip old) info)
+                 (bison-space--status-changed nil nil nil))))))
+      (error (kill-buffer out)
+             (puthash root (list :time (float-time)) bison-space--git)))))
+
+(defun bison-space--git-strip (info)
+  "Return git INFO without its bookkeeping, for comparing answers."
+  (and (plist-member info :branch)
+       (list :branch (plist-get info :branch) :ahead (plist-get info :ahead)
+             :behind (plist-get info :behind) :dirty (plist-get info :dirty))))
+
+(defun bison-space--git-info (root)
+  "Return the last git status of ROOT, asking again if it is stale."
+  (let ((info (gethash root bison-space--git)))
+    (when (and (not (plist-get info :pending))
+               (not (file-remote-p root))
+               (> (- (float-time) (or (plist-get info :time) 0))
+                  bison-space-git-interval))
+      (bison-space--git-refresh root))
+    info))
+
+(defun bison-space--git-tail (root name)
+  "Return the git tail for space NAME at ROOT, or an empty string."
+  (let* ((info (and root (bison-space--git-info root)))
+         (branch (plist-get info :branch))
+         (ahead (or (plist-get info :ahead) 0))
+         (behind (or (plist-get info :behind) 0))
+         (dirty (or (plist-get info :dirty) 0))
+         (parts
+          (delq nil
+                (list (and branch
+                           (not (member branch '("main" "master")))
+                           ;; wt names a worktree's directory after its
+                           ;; branch, slashes and all turned to dashes.
+                           (not (equal (replace-regexp-in-string "[^[:alnum:]._-]" "-" branch)
+                                       name))
+                           (truncate-string-to-width
+                            (if (equal branch "(detached)") "detached" branch)
+                            14 nil nil "…"))
+                      (and (> ahead 0)
+                           (propertize (format "↑%d" ahead)
+                                       'face 'bison-space-sidebar-git-ahead))
+                      (and (> behind 0)
+                           (propertize (format "↓%d" behind)
+                                       'face 'bison-space-sidebar-git-behind))
+                      (and (> dirty 0)
+                           (propertize (format "~%d" dirty)
+                                       'face 'bison-space-sidebar-git-dirty))))))
+    (if (null parts)
+        ""
+      (let ((tail (string-join parts " ")))
+        (add-face-text-property 0 (length tail) 'bison-space-sidebar-git t tail)
+        tail))))
+
 (defun bison-space--sidebar-insert-row (space indent icon text &optional status)
   "Insert a row for SPACE at INDENT: ICON, then TEXT.
 SPACE is (GROUP NAME CURRENT), or nil for a repo with no space open.
 STATUS, a status plist, is shown at the right edge."
-  (pcase-let ((`(,group ,name ,current) space)
-              (start (point))
-              (glyph (if status (bison-space--status-glyph status) "")))
+  (pcase-let* ((`(,group ,name ,current) space)
+               (start (point))
+               (glyph (if status (bison-space--status-glyph status) ""))
+               (tail (if space
+                         (bison-space--git-tail
+                          (gethash (cons group name) bison-space--roots) name)
+                       ""))
+               (right (concat tail
+                              (and (not (string-empty-p tail))
+                                   (not (string-empty-p glyph))
+                                   " ")
+                              glyph)))
     (insert (make-string indent ?\s) (bison-space--icon icon)
             (propertize text 'face (unless space 'bison-space-sidebar-closed))
             ;; In pixels, as this buffer draws the glyph: columns would
@@ -1118,9 +1267,9 @@ STATUS, a status plist, is shown at the right edge."
             ;; one or the icon font's.
             (propertize " " 'display
                         `(space :align-to
-                                (- right (,(+ (bison-space--pixel-width glyph)
+                                (- right (,(+ (bison-space--pixel-width right)
                                                 (bison-space--right-gap))))))
-            glyph
+            right
             (bison-space--sidebar-newline))
     (when current
       (add-face-text-property start (point) 'bison-space-sidebar-current))
@@ -1227,6 +1376,12 @@ CURRENT non-nil marks the agent in view in the selected space."
                            help-echo ,(concat (bison-space--status-describe status)
                                               "\nmouse-1: show this agent")))))
 
+(defun bison-space--sidebar-divider ()
+  "Insert a thin rule between sections, a little space either side."
+  (insert (propertize "\n" 'face 'bison-space-sidebar-gap)
+          (propertize "\n" 'face 'bison-space-sidebar-divider)
+          (propertize "\n" 'face 'bison-space-sidebar-gap)))
+
 (defun bison-space--sidebar-insert-agents ()
   "Insert the agents section, if any agent is running."
   (when-let* ((sections (bison-space--sidebar-agents)))
@@ -1234,7 +1389,8 @@ CURRENT non-nil marks the agent in view in the selected space."
            (current (and window (window-buffer window)))
            (count (number-to-string
                    (apply #'+ (mapcar (lambda (s) (length (cdr s))) sections)))))
-      (insert "\n " (propertize "Agents" 'face 'bison-space-sidebar-header)
+      (bison-space--sidebar-divider)
+      (insert " " (propertize "Agents" 'face 'bison-space-sidebar-header)
               (propertize " " 'display
                           `(space :align-to
                                   (- right (,(+ (bison-space--pixel-width count)
