@@ -91,7 +91,15 @@ there.  Both variables, for the reason given in
   :custom
   ;; Outside straight/build/, which straight wipes on every rebuild.
   (ghostel-module-directory (bison-cache-file "ghostel/"))
-  (ghostel-module-auto-install 'ask))
+  (ghostel-module-auto-install 'ask)
+  :config
+  ;; Every mode line counts terminals whose program is working, needs
+  ;; you, or has finished or failed; a click visits them in turn.
+  (ghostel-status-indicator-mode 1)
+  ;; M-o / M-O move between windows everywhere, terminals included;
+  ;; tmux's own M-o pane cycling stays on its prefix (C-a o).
+  (setopt ghostel-keymap-exceptions
+          (seq-union ghostel-keymap-exceptions '("M-o" "M-O"))))
 
 (use-package eshell
   :straight (:type built-in)
