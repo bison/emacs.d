@@ -1277,6 +1277,22 @@ is posted from a timer, off the terminal output path."
           (insert string)
           (car (buffer-text-pixel-size nil nil t)))))))
 
+(defun bison-space--truncate (string pixels)
+  "Return STRING cut to fit PIXELS as the current buffer draws it.
+A cut string ends in an ellipsis."
+  (static-if (>= emacs-major-version 31)
+      (truncate-string-pixelwise string pixels (current-buffer) "…")
+    ;; Emacs 30 has no `truncate-string-pixelwise'.
+    (if (<= (bison-space--pixel-width string) pixels)
+        string
+      (let ((end (length string)))
+        (while (and (> end 0)
+                    (> (bison-space--pixel-width
+                        (concat (substring string 0 end) "…"))
+                       pixels))
+          (setq end (1- end)))
+        (concat (substring string 0 end) "…")))))
+
 (defun bison-space--right-gap ()
   "Return the pixels to leave right of the status glyphs."
   (max bison-space-sidebar-right-padding
@@ -1561,8 +1577,7 @@ CURRENT non-nil marks the agent in view in the selected space."
                     (* bison-space-sidebar-width (frame-char-width)))
                   gap
                   (bison-space--pixel-width (concat "    " icon))))
-         (label (truncate-string-pixelwise (bison-space--agent-label buffer)
-                                           room (current-buffer) "…")))
+         (label (bison-space--truncate (bison-space--agent-label buffer) room)))
     (insert "  " icon label
             (propertize " " 'display `(space :align-to (- right (,gap))))
             right
@@ -1726,8 +1741,7 @@ FACE, if given, colours it.  Empty without nerd-icons."
                     (* bison-space-sidebar-width (frame-char-width)))
                   gap
                   (bison-space--pixel-width (concat "    " icon))))
-         (label (truncate-string-pixelwise (or (plist-get row :label) "")
-                                           room (current-buffer) "…")))
+         (label (bison-space--truncate (or (plist-get row :label) "") room)))
     (insert "  " icon label
             (propertize " " 'display `(space :align-to (- right (,gap))))
             right
