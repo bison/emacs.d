@@ -1186,6 +1186,12 @@ only for `blocked' and `error', as the sidebar shows only those."
               (const :tag "Failed" error)
               (const :tag "Finished a turn" done)))
 
+(defcustom bison-space-notify-blocked-sound "Glass"
+  "Sound played on macOS with a notification of an agent that needs you.
+A name from /System/Library/Sounds, or nil for silence.  Other
+notifications, and every one on Linux, are silent."
+  :type '(choice (string :tag "Sound name") (const :tag "Silent" nil)))
+
 (defun bison-space--emacs-focused-p ()
   "Return non-nil if some Emacs frame has the input focus."
   (seq-some (lambda (frame) (eq (frame-focus-state frame) t))
@@ -1197,14 +1203,17 @@ only for `blocked' and `error', as the sidebar shows only those."
           (replace-regexp-in-string "[\\\"]" "\\\\\\&" string)
           "\""))
 
-(defun bison-space--notify (title body agent)
+(defun bison-space--notify (title body agent &optional sound)
   "Post a desktop notification of TITLE and BODY about AGENT's terminal.
-Does nothing where neither AppleScript nor D-Bus notifications exist."
+SOUND names a macOS sound to play with it.  Does nothing where
+neither AppleScript nor D-Bus notifications exist."
   (cond ((fboundp 'ns-do-applescript)
          (ns-do-applescript
-          (format "display notification %s with title %s"
-                  (bison-space--applescript-string body)
-                  (bison-space--applescript-string title))))
+          (concat (format "display notification %s with title %s"
+                          (bison-space--applescript-string body)
+                          (bison-space--applescript-string title))
+                  (and sound (concat " sound name "
+                                     (bison-space--applescript-string sound))))))
         ((and (featurep 'dbusbind) (require 'notifications nil t))
          (notifications-notify
           :title title :body body :app-name "Emacs"
@@ -1232,7 +1241,9 @@ is posted from a timer, off the terminal output path."
                      (bison-space--label group name)
                      (bison-space--status-describe
                       (append (list :agent agent) new))
-                     agent)))))
+                     agent
+                     (and (eq state 'blocked)
+                          bison-space-notify-blocked-sound))))))
 
 ;; Not before ghostel-status defines the hook: `add-hook' on an unbound
 ;; variable would create it, and its defcustom would then skip ghostel's
