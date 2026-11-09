@@ -1460,12 +1460,26 @@ CURRENT non-nil marks the agent in view in the selected space."
   (setq bison-space--sidebar-clock
         (run-with-timer 30 30 #'bison-space--sidebar-tick)))
 
+(defun bison-space--sidebar-frame ()
+  "Return the frame whose spaces the sidebar shows, or nil if none.
+The selected frame when it shows the sidebar, else any frame that
+does.  Not just the selected one: timers, process sentinels and
+emacsclient calls can run with the daemon's own terminal-less frame
+selected, whose tabs hold no spaces."
+  (if (get-buffer-window bison-space--sidebar-name (selected-frame))
+      (selected-frame)
+    (when-let* ((window (get-buffer-window bison-space--sidebar-name t)))
+      (window-frame window))))
+
 (defun bison-space--sidebar-render ()
-  "Redraw the sidebar from the selected frame's tabs, if it exists.
-Point stays on its line while the sidebar is selected, and otherwise
+  "Redraw the sidebar from the tabs of the frame showing it.
+Nothing to do while no frame shows it; showing it redraws it.  Point
+stays on its line while the sidebar is selected, and otherwise
 follows the current space, so it is there on the next visit."
-  (when-let* ((buffer (get-buffer bison-space--sidebar-name)))
-    (with-current-buffer buffer
+  (when-let* ((buffer (get-buffer bison-space--sidebar-name))
+              (frame (bison-space--sidebar-frame)))
+    (with-selected-frame frame
+     (with-current-buffer buffer
       (let* ((inhibit-read-only t)
              (line (line-number-at-pos))
              (count 0)
@@ -1512,7 +1526,7 @@ follows the current space, so it is there on the next visit."
           ;; A window shows its own point, not the buffer's.
           (dolist (window (get-buffer-window-list buffer nil t))
             (set-window-point window (point))))
-        (force-mode-line-update)))))
+        (force-mode-line-update))))))
 
 (defun bison-space--sidebar-fit (&optional frame)
   "Hold the sidebar in FRAME at `bison-space-sidebar-width' columns.
