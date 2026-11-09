@@ -116,6 +116,14 @@
 
 (setq frame-title-format '("%b -- Emacs"))
 
+;; Claude Code marks recaps and notes with ※ (U+203B).  JetBrains Mono
+;; has no glyph for it, and the automatic fallback lands on Arial Unicode
+;; MS, which is proportional; Monaco is the installed monospace font that
+;; has it.  One code point, not a range: a fontset entry wins over the
+;; frame's font, so a range would also take over punctuation JetBrains
+;; Mono draws itself.
+(set-fontset-font t #x203B (font-spec :family "Monaco") nil 'prepend)
+
 ;; Font size for every buffer and frame at once, on the keys Ghostty and
 ;; most macOS apps use; the stock s-= family scales one buffer only.
 ;; `global-text-scale-adjust' picks its direction from the key that
