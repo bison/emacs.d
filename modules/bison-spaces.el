@@ -47,6 +47,7 @@
 (defvar ghostel-query-before-killing)
 (defvar ghostel-kill-buffer-on-exit)
 (defvar ghostel--process)
+(defvar ghostel-environment)
 (defvar ghostel-status-mode-line-labels)
 
 (use-package tab-bar
@@ -237,6 +238,18 @@ It is the window weakly dedicated to `bison-space': `display-buffer'
             name (format "*%s: %s<%d>*" label tag n)))
     name))
 
+(defun bison-space--agent-environment (group name root)
+  "Return the environment telling an agent it runs in space NAME in GROUP.
+BISON_SPACE names the space as ORG/REPO[/NAME], BISON_SPACE_ROOT is
+ROOT, its directory, and BISON_SPACE_REPO the repository's main
+checkout.  A
+Claude Code SessionStart hook (in the config repo) reads them to tell
+Claude it runs here, and how the workflow goes."
+  (list (concat "BISON_SPACE=" (bison-space--key group name))
+        (concat "BISON_SPACE_ROOT=" (directory-file-name (expand-file-name root)))
+        (concat "BISON_SPACE_REPO="
+                (directory-file-name (bison-space--repo-dir root)))))
+
 (defun bison-space--start-agent (group name root harness command)
   "Start an agent typing COMMAND in space NAME in GROUP at ROOT.
 HARNESS is its key of `bison-space-harnesses', or `other'.  The new
@@ -258,8 +271,11 @@ terminal is shown in the agent window; return it."
     ;; Shown first: `ghostel-exec' sizes the terminal to its window.
     (switch-to-buffer buffer nil t)
     (set-window-dedicated-p window 'bison-space)
-    (ghostel-exec buffer (or (getenv "SHELL") "/bin/zsh")
-                  (list "-l" "-i" "-c" command))
+    (let ((ghostel-environment
+           (append (bison-space--agent-environment group name root)
+                   (bound-and-true-p ghostel-environment))))
+      (ghostel-exec buffer (or (getenv "SHELL") "/bin/zsh")
+                    (list "-l" "-i" "-c" command)))
     (with-current-buffer buffer
       (setq bison-space-agent
             (list group name harness (cl-incf bison-space--agent-serial) command))
@@ -715,25 +731,60 @@ with stdin closed, rather than run unreviewed."
                 (message "wt %s failed; see *wt*" (car args)))
             (kill-buffer out))))))))
 
-(defun bison-space-new-worktree (branch &optional base)
+(defun bison-space--worktree-dir-name (branch)
+  "Return the directory name wt gives BRANCH's worktree: slashes to dashes."
+  (replace-regexp-in-string "[^[:alnum:]._-]" "-" branch))
+
+(defun bison-space--repo-dir (root)
+  "Return the main checkout of the repository space ROOT belongs to."
+  (let* ((dir (directory-file-name (expand-file-name root)))
+         (parent (directory-file-name (file-name-directory dir))))
+    (file-name-as-directory
+     (if (equal (file-name-nondirectory parent) ".worktrees")
+         (file-name-directory parent)
+       dir))))
+
+(defun bison-space-new-worktree (branch &optional base stream)
   "Start a work stream on new BRANCH: a worktree from wt, in its own space.
 The worktree belongs to the current project's repository, or in the
-sidebar to the repository of the line at point.  With a prefix
-argument, also read BASE, the branch to start from; wt defaults to
-the repository's default branch."
+sidebar to the repository of the line at point.
+
+With a prefix argument, also read BASE, the branch to start from (wt
+defaults to the repository's default branch), and STREAM, a name for
+the worktree and so the space, for a stream that will outlive its
+first branch: the work moves on to other branches in the same
+worktree, the space keeps its name, and the sidebar shows whichever
+branch is checked out.  RET at either takes the default."
   (interactive
-   (list (read-string "New branch: ")
-         (and current-prefix-arg (read-string "Base branch: "))))
+   (let* ((branch (read-string "New branch: "))
+          (default (bison-space--worktree-dir-name branch)))
+     (if current-prefix-arg
+         (list branch
+               (read-string "Base branch (RET: the default branch): ")
+               (read-string (format "Stream name (RET: %s): " default)
+                            nil nil default))
+       (list branch))))
   (when (string-empty-p branch)
     (user-error "No branch given"))
-  (let ((default-directory (or (nth 2 (bison-space--context))
-                               (user-error "Reopen this space first"))))
+  (let* ((root (or (nth 2 (bison-space--context))
+                   (user-error "Reopen this space first")))
+         (default-directory root)
+         (base (and base (not (string-empty-p base)) base))
+         (stream (and stream (bison-space--worktree-dir-name stream)))
+         ;; Under .worktrees/ like the rest, where discovery and the
+         ;; sidebar's grouping look; absolute, since this may run from
+         ;; inside another worktree.
+         (path (and stream
+                    (not (equal stream (bison-space--worktree-dir-name branch)))
+                    (expand-file-name (concat ".worktrees/" stream)
+                                      (bison-space--repo-dir root)))))
     (message "Creating a worktree for %s..." branch)
     ;; --no-cd: there is no shell to move.  The JSON says where the
     ;; worktree went; wt sanitizes the branch for the directory.
     (bison-space--wt
      `("switch" "--create" ,branch "--no-cd" "--format" "json"
-       ,@(and base (list "--base" base)))
+       ,@(and base (list "--base" base))
+       ,@(and path (list "--path" path)))
      (lambda (result)
        (let ((default-directory
               (file-name-as-directory (alist-get 'path result))))
@@ -1877,7 +1928,8 @@ Everywhere
   \\[bison-space-reset]	Reset this space's layout
   \\[bison-space-close]	Close this space and kill its terminals
   \\[bison-space-new-worktree]	New worktree on a new branch, in a new space
-	(\\[universal-argument] \\[bison-space-new-worktree]: also ask for the base branch)
+	(\\[universal-argument] \\[bison-space-new-worktree]: also the base branch, and a stream name
+	 for the worktree when the work will outlive its first branch)
   \\[bison-space-remove-worktree]	Remove this space's worktree, then close it
 	(\\[universal-argument] \\[bison-space-remove-worktree]: even if dirty or unmerged)
   \\[bison-space-sidebar-toggle]	Show and focus the sidebar; again to hide it
