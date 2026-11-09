@@ -43,6 +43,9 @@
 (require 'bison-lang-go)
 (require 'bison-lang-ops)
 
+;; Private or machine-specific additions, kept out of this repository.
+(bison-load-local)
+
 ;; Customize writes here; the file is gitignored and loaded if present.
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file 'noerror 'nomessage)

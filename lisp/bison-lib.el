@@ -84,5 +84,29 @@ the shortest virtiofs mount under /Users/ gives the home.  There is no
       (expand-file-name "~/Code")))
   "Directory holding <org>/<repo> checkouts: the host's in a guest, else ~/Code.")
 
+(defconst bison-local-dir
+  (file-name-as-directory
+   (or (getenv "BISON_EMACS_LOCAL_DIR")
+       (expand-file-name "emacs-local" (or (getenv "XDG_CONFIG_HOME") "~/.config"))))
+  "Directory of local Lisp loaded after the modules, if it exists.
+For code that does not belong in this repository -- private, or
+specific to one machine or employer -- deployed some other way, such
+as by chezmoi.  Not ~/.config/emacs: Emacs takes that for its own
+init directory whenever ~/.emacs.d is missing.  BISON_EMACS_LOCAL_DIR
+overrides it.")
+
+(defun bison-load-local ()
+  "Load every .el file in `bison-local-dir', in name order.
+An error in one is reported, not fatal, so a broken local file never
+stops the rest of the configuration from starting."
+  (when (file-directory-p bison-local-dir)
+    (dolist (file (directory-files bison-local-dir t "\\`[^.].*\\.el\\'"))
+      (condition-case err
+          (load file nil t)
+        (error (display-warning 'bison-local
+                                (format "%s: %s" (file-name-nondirectory file)
+                                        (error-message-string err))
+                                :error))))))
+
 (provide 'bison-lib)
 ;;; bison-lib.el ends here
