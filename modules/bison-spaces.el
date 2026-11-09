@@ -39,6 +39,7 @@
 (declare-function ghostel-send-string "ghostel")
 (declare-function ghostel-exec "ghostel")
 (declare-function nerd-icons-octicon "nerd-icons")
+(declare-function nerd-icons-codicon "nerd-icons")
 (declare-function doom-modeline-def-modeline "doom-modeline-core")
 (declare-function doom-modeline-set-modeline "doom-modeline-core")
 (defvar ghostel-buffer-name)
@@ -60,17 +61,22 @@
 
 (defcustom bison-space-harnesses
   '((claude :name "Claude Code" :command "claude"
-            :resume "claude --continue" :key ?c)
+            :resume "claude --continue" :key ?c :icon "nf-cod-claude"
+            ;; The orange the CLI draws its mascot in.
+            :color "#d77757")
     (codex :name "Codex" :command "codex"
-           :resume "codex resume --last" :key ?x))
+           :resume "codex resume --last" :key ?x :icon "nf-cod-openai"))
   "Agent harnesses a space can start, as (SYMBOL . PLIST).
 :name is shown in the launcher, :command starts a new session,
 :resume continues the last one in the directory, and :key starts it
-from the launcher."
+from the launcher.  :icon names a Nerd Font codicon (`nerd-icons'):
+the harness's mark in the launcher and the sidebar's agents list.
+:color, the brand's colour, tints that icon while
+`bison-space-icon-colors' is on; without one it takes the text's."
   :type '(alist :key-type symbol :value-type plist))
 
 (defcustom bison-space-default-harness 'claude
-  "The harness offered first, and started by \[universal-argument] \[bison-space]."
+  "The harness offered first, and started by \\[universal-argument] \\[bison-space]."
   :type 'symbol)
 
 (defcustom bison-space-shell 'tmux
@@ -449,13 +455,15 @@ view, the window shows whatever Emacs picked instead."
                     (lambda (resume)
                       (interactive "P")
                       (bison-space--launch harness resume)))
-        (insert (format "  %5s   %-14s %s\n"
+        (insert (format "  %5s   %s%-14s %s\n"
                         (propertize (char-to-string key)
                                     'face 'bison-space-launcher-key)
+                        (bison-space--harness-icon harness)
                         (plist-get spec :name)
                         (propertize (plist-get spec :command) 'face 'shadow)))))
-    (insert (format "  %5s   %s\n"
+    (insert (format "  %5s   %s%s\n"
                     (propertize "RET" 'face 'bison-space-launcher-key)
+                    (bison-space--harness-icon 'other)
                     "Another command")
             "\n  "
             (propertize
@@ -1341,12 +1349,46 @@ AGE is the seconds since the agent's state last changed."
                             (seq-sort-by (lambda (row) (nth 2 row)) #'< in))))
                   bison-space--agent-sections))))
 
+(defcustom bison-space-icon-scale 0.85
+  "Size of harness icons, relative to the text beside them."
+  :type 'number)
+
+(defcustom bison-space-icon-colors t
+  "Non-nil to draw harness icons in their brands' colours.
+Each harness's :color in `bison-space-harnesses'; nil, or a harness
+without one, draws the icon in the colour of the text beside it."
+  :type 'boolean)
+
+(defun bison-space--harness-icon (harness)
+  "Return HARNESS's icon and a space, or nothing without one.
+Its :icon glyph, a little smaller than the text, in its :color per
+`bison-space-icon-colors'; a command that is no harness gets a plain
+terminal."
+  (let ((spec (alist-get harness bison-space-harnesses)))
+    (if-let* ((name (if (eq harness 'other) "nf-cod-terminal" (plist-get spec :icon)))
+              ((require 'nerd-icons nil t))
+              (icon (ignore-errors (copy-sequence (nerd-icons-codicon name)))))
+        (let ((color (and bison-space-icon-colors (plist-get spec :color))))
+          ;; In front: nerd-icons gives the glyph its own :height 1.0.
+          (add-face-text-property 0 (length icon)
+                                  `(:height ,bison-space-icon-scale
+                                    ,@(and color (list :foreground color)))
+                                  nil icon)
+          (concat icon " "))
+      "")))
+
 (defun bison-space--agent-label (buffer)
-  "Return \"SPACE · TAG\" for agent terminal BUFFER."
-  (pcase-let ((`(,group ,name) (buffer-local-value 'bison-space-agent buffer)))
-    (concat (bison-space--label group name) " · "
-            (string-remove-suffix
-             "*" (car (last (split-string (buffer-name buffer) ": ")))))))
+  "Return the agents list's label for agent terminal BUFFER.
+Its space; the harness is the icon in front of it.  A second agent of
+the same harness in a space adds its number, and a command that is no
+harness its name, which no icon tells."
+  (pcase-let* ((`(,group ,name ,harness) (buffer-local-value 'bison-space-agent buffer))
+               (tag (string-remove-suffix
+                     "*" (car (last (split-string (buffer-name buffer) ": "))))))
+    (concat (bison-space--label group name)
+            (cond ((eq harness 'other) (concat " · " tag))
+                  ((string-match "<\\([0-9]+\\)>\\'" tag)
+                   (concat " " (match-string 1 tag)))))))
 
 (defun bison-space--sidebar-insert-agent (buffer status age current)
   "Insert the row of agent BUFFER with STATUS, AGE seconds in it.
@@ -1357,14 +1399,16 @@ CURRENT non-nil marks the agent in view in the selected space."
                                     'face 'bison-space-sidebar-header)
                         " " glyph))
          (gap (+ (bison-space--pixel-width right) (bison-space--right-gap)))
+         (icon (bison-space--harness-icon
+                (nth 2 (buffer-local-value 'bison-space-agent buffer))))
          (room (- (if-let* ((window (get-buffer-window (current-buffer) t)))
                       (window-body-width window t)
                     (* bison-space-sidebar-width (frame-char-width)))
                   gap
-                  (bison-space--pixel-width "    ")))
+                  (bison-space--pixel-width (concat "    " icon))))
          (label (truncate-string-pixelwise (bison-space--agent-label buffer)
                                            room (current-buffer) "…")))
-    (insert "  " label
+    (insert "  " icon label
             (propertize " " 'display `(space :align-to (- right (,gap))))
             right
             (bison-space--sidebar-newline))
