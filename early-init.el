@@ -50,4 +50,17 @@
   (push '(ns-transparent-titlebar . t) default-frame-alist)
   (push '(ns-appearance . dark) default-frame-alist))
 
+;; Draw text without macOS font smoothing, as Ghostty does by default
+;; (`font-thicken = false').  Smoothing thickens every stroke, which
+;; makes light-on-dark text heavy to read; `ns-use-thin-smoothing' only
+;; softens that.  The setting is an app default that Emacs reads at
+;; launch, so on a fresh machine it applies from the second start on.
+;; Written on every start, without waiting: it is idempotent, and
+;; `ns-get-resource' can't check it first because it fails before the
+;; window system is up, as in the daemon.  `defaults' rather than
+;; `ns-set-resource', which would store the integer as a string.
+(when (eq system-type 'darwin)
+  (call-process "defaults" nil 0 nil
+                "write" "org.gnu.Emacs" "AppleFontSmoothing" "-int" "0"))
+
 ;;; early-init.el ends here
