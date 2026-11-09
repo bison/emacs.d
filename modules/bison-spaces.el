@@ -39,6 +39,8 @@
 (declare-function ghostel-send-string "ghostel")
 (declare-function ghostel-exec "ghostel")
 (declare-function nerd-icons-octicon "nerd-icons")
+(declare-function notifications-notify "notifications")
+(declare-function ns-do-applescript "nsfns.m")
 (declare-function nerd-icons-codicon "nerd-icons")
 (declare-function doom-modeline-def-modeline "doom-modeline-core")
 (declare-function doom-modeline-set-modeline "doom-modeline-core")
@@ -226,6 +228,14 @@ It is the window weakly dedicated to `bison-space': `display-buffer'
     (set-window-dedicated-p window nil)
     (switch-to-buffer buffer nil t)
     (set-window-dedicated-p window 'bison-space)))
+
+(defun bison-space--visit-agent (agent)
+  "Switch to the space of agent terminal AGENT and show it there."
+  (pcase-let ((`(,group ,name) (buffer-local-value 'bison-space-agent agent)))
+    (tab-bar-select-tab
+     (1+ (or (bison-space--tab-index group name)
+             (user-error "No open space for %s" (buffer-name agent)))))
+    (bison-space--show-agent agent)))
 
 (defun bison-space--fresh-name (label tag)
   "Return an unused agent buffer name for TAG in space LABEL."
@@ -1159,11 +1169,77 @@ happens while the sidebar is hidden."
            '(permission question auth))
    `((progress . ,(propertize "%p%%%c" 'face 'bison-space-status-working)))))
 
+;;;; Agent status: desktop notifications
+
+;; While no Emacs frame has focus, an agent entering one of
+;; `bison-space-notify-states' posts a desktop notification: through
+;; AppleScript on macOS, run inside Emacs so it carries Emacs's icon
+;; and clicking it brings Emacs forward, and through D-Bus elsewhere,
+;; where clicking it also shows the agent.  With Emacs in front the
+;; sidebar is the notice.
+
+(defcustom bison-space-notify-states '(blocked error)
+  "Agent states that post a desktop notification while Emacs is unfocused.
+A subset of `blocked', `error' and `done'.  Background agents notify
+only for `blocked' and `error', as the sidebar shows only those."
+  :type '(set (const :tag "Needs you" blocked)
+              (const :tag "Failed" error)
+              (const :tag "Finished a turn" done)))
+
+(defun bison-space--emacs-focused-p ()
+  "Return non-nil if some Emacs frame has the input focus."
+  (seq-some (lambda (frame) (eq (frame-focus-state frame) t))
+            (frame-list)))
+
+(defun bison-space--applescript-string (string)
+  "Return STRING as an AppleScript string literal."
+  (concat "\""
+          (replace-regexp-in-string "[\\\"]" "\\\\\\&" string)
+          "\""))
+
+(defun bison-space--notify (title body agent)
+  "Post a desktop notification of TITLE and BODY about AGENT's terminal.
+Does nothing where neither AppleScript nor D-Bus notifications exist."
+  (cond ((fboundp 'ns-do-applescript)
+         (ns-do-applescript
+          (format "display notification %s with title %s"
+                  (bison-space--applescript-string body)
+                  (bison-space--applescript-string title))))
+        ((and (featurep 'dbusbind) (require 'notifications nil t))
+         (notifications-notify
+          :title title :body body :app-name "Emacs"
+          :actions '("default" "Show agent")
+          :on-action (lambda (_id _key)
+                       (when (buffer-live-p agent)
+                         (select-frame-set-input-focus (selected-frame))
+                         (bison-space--visit-agent agent)))))))
+
+(defun bison-space--notify-status (id old new)
+  "Notify of an agent entering a state of `bison-space-notify-states'.
+A member of `ghostel-program-status-functions', with the record ID,
+its OLD and NEW plists.  Only a change of state notifies, only from a
+space's agent, and only while Emacs is unfocused.  The notification
+is posted from a timer, off the terminal output path."
+  (let ((state (plist-get new :state))
+        (agent (current-buffer)))
+    (when (and bison-space-agent
+               (memq state bison-space-notify-states)
+               (not (eq state (plist-get old :state)))
+               (or (equal id "") (memq state '(blocked error)))
+               (not (bison-space--emacs-focused-p)))
+      (pcase-let ((`(,group ,name) bison-space-agent))
+        (run-at-time 0 nil #'bison-space--notify
+                     (bison-space--label group name)
+                     (bison-space--status-describe
+                      (append (list :agent agent) new))
+                     agent)))))
+
 ;; Not before ghostel-status defines the hook: `add-hook' on an unbound
 ;; variable would create it, and its defcustom would then skip ghostel's
 ;; own default members.
 (with-eval-after-load 'ghostel-status
   (add-hook 'ghostel-program-status-functions #'bison-space--status-changed)
+  (add-hook 'ghostel-program-status-functions #'bison-space--notify-status)
   ;; The counter `ghostel-status-indicator-mode' puts in every mode line
   ;; already includes a terminal's own state, so its own label in
   ;; `mode-line-process' only doubled it -- at the far right edge, where
@@ -1822,11 +1898,7 @@ An agent's row shows the agent; a section's row runs its action."
       (funcall action)
    (if-let* ((agent (get-text-property (line-beginning-position)
                                        'bison-space-agent-row)))
-      (pcase-let ((`(,group ,name) (buffer-local-value 'bison-space-agent agent)))
-        (tab-bar-select-tab
-         (1+ (or (bison-space--tab-index group name)
-                 (user-error "No open space for %s" (buffer-name agent)))))
-        (bison-space--show-agent agent))
+      (bison-space--visit-agent agent)
     (pcase-let ((`(,group . ,name) (bison-space--at-point)))
       (when-let* ((index (bison-space--tab-index group name)))
         (tab-bar-select-tab (1+ index)))))))
