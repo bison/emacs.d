@@ -1433,20 +1433,170 @@ CURRENT non-nil marks the agent in view in the selected space."
            (current (and window (window-buffer window)))
            (count (number-to-string
                    (apply #'+ (mapcar (lambda (s) (length (cdr s))) sections)))))
-      (bison-space--sidebar-divider)
-      (insert " " (propertize "Agents" 'face 'bison-space-sidebar-header)
-              (propertize " " 'display
-                          `(space :align-to
-                                  (- right (,(+ (bison-space--pixel-width count)
-                                                (bison-space--right-gap))))))
-              (propertize count 'face 'bison-space-sidebar-header)
-              (bison-space--sidebar-newline))
+      (bison-space--sidebar-heading "Agents" count)
       (pcase-dolist (`(,heading . ,rows) sections)
         (insert " " (propertize heading 'face 'bison-space-sidebar-org)
                 (bison-space--sidebar-newline))
         (pcase-dolist (`(,buffer ,status ,age) rows)
           (bison-space--sidebar-insert-agent buffer status age
                                              (eq buffer current)))))))
+
+;;;; Sidebar: sections
+
+;; Below the spaces, the sidebar is a list of sections, each a heading
+;; over rows: the built-in Agents section, and any a plugin defines with
+;; `bison-space-define-section' -- code outside this module, as the
+;; NetBird clusters are, loaded from `bison-local-dir'.  A plugin
+;; supplies data; the module draws it like the rest of the sidebar.
+
+(defvar bison-space-sidebar-sections nil
+  "The sidebar's sections below the spaces, in order, as (ID . PLIST).
+See `bison-space-define-section'.")
+
+(defun bison-space-define-section (id &rest props)
+  "Define the sidebar section ID with PROPS, or redefine it in place.
+PROPS:
+  :title     the heading.
+  :rows      a function of no arguments returning the rows to show, a
+             list of plists, or nil to leave the section out:
+               :label   the text;
+               :icon    a string drawn before it (see
+                        `bison-space-sidebar-icon');
+               :right   dim text at the right edge, before the glyph;
+               :glyph   a string at the right edge;
+               :help    the hover text;
+               :action  a function of no arguments, run by RET or a
+                        click on the row;
+               :current non-nil to mark the row as current.
+             It is called on every redraw, so it must be quick: work
+             that is not belongs in :update.
+  :update    a function of no arguments run every :interval seconds
+             while the sidebar shows, to fetch what :rows reads.
+             Asynchronous work calls `bison-space-sidebar-refresh' once
+             its answer is in.
+  :interval  seconds between :update runs; default 10.
+  :after     the ID of a section to come after; default, last.
+  :insert    instead of :rows, a function inserting the whole section
+             itself, divider included (the built-in sections)."
+  (let ((old (assq id bison-space-sidebar-sections)))
+    (when-let* ((timer (plist-get (cdr old) :timer)))
+      (cancel-timer timer))
+    (when-let* ((update (plist-get props :update)))
+      (setq props
+            (plist-put props :timer
+                       (run-with-timer 0 (or (plist-get props :interval) 10)
+                                       (lambda ()
+                                         (when (bison-space--sidebar-frame)
+                                           (funcall update)))))))
+    ;; Where it goes: after AFTER; else, redefined, where it was; else
+    ;; last.  Reloading a file must not reorder the sidebar.
+    (let* ((after (plist-get props :after))
+           (entry (cons id props))
+           (was (and old (seq-position bison-space-sidebar-sections old)))
+           (index (progn
+                    (setq bison-space-sidebar-sections
+                          (delq old bison-space-sidebar-sections))
+                    (if after
+                        (when-let* ((at (seq-position bison-space-sidebar-sections after
+                                                      (lambda (e id) (eq (car e) id)))))
+                          (1+ at))
+                      was))))
+      (setq bison-space-sidebar-sections
+            (if index
+                (append (seq-take bison-space-sidebar-sections index)
+                        (list entry)
+                        (seq-drop bison-space-sidebar-sections index))
+              (append bison-space-sidebar-sections (list entry)))))
+    (bison-space-sidebar-refresh)
+    id))
+
+(defun bison-space-sidebar-refresh ()
+  "Redraw the sidebar soon, if it shows; for plugins whose data changed."
+  (bison-space--status-changed nil nil nil))
+
+(defconst bison-space--nerd-icon-sets
+  '(("nf-md-" . nerd-icons-mdicon) ("nf-oct-" . nerd-icons-octicon)
+    ("nf-cod-" . nerd-icons-codicon) ("nf-dev-" . nerd-icons-devicon)
+    ("nf-fa-" . nerd-icons-faicon) ("nf-seti-" . nerd-icons-sucicon)
+    ("nf-custom-" . nerd-icons-sucicon) ("nf-linux-" . nerd-icons-flicon)
+    ("nf-weather-" . nerd-icons-wicon) ("nf-pom-" . nerd-icons-pomicon))
+  "The nerd-icons function for each Nerd Font name prefix.")
+
+(defun bison-space--nerd-icon (name)
+  "Return the Nerd Font icon NAME, from the set its prefix names."
+  (if-let* ((set (seq-find (lambda (entry) (string-prefix-p (car entry) name))
+                           bison-space--nerd-icon-sets)))
+      (funcall (cdr set) name)
+    (error "No nerd-icons set for %s" name)))
+
+(defun bison-space-sidebar-icon (icon &optional face)
+  "Return the Nerd Font ICON, e.g. \"nf-md-kubernetes\", sized for a row.
+FACE, if given, colours it.  Empty without nerd-icons."
+  (if-let* (((require 'nerd-icons nil t))
+            (glyph (ignore-errors (copy-sequence (bison-space--nerd-icon icon)))))
+      (progn
+        (add-face-text-property 0 (length glyph)
+                                `(:height ,bison-space-icon-scale
+                                  ,@(and face (list :inherit face)))
+                                nil glyph)
+        glyph)
+    ""))
+
+(defun bison-space--sidebar-heading (title &optional count)
+  "Insert a section's divider and TITLE, COUNT at the right if given."
+  (bison-space--sidebar-divider)
+  (insert " " (propertize title 'face 'bison-space-sidebar-header))
+  (when count
+    (insert (propertize " " 'display
+                        `(space :align-to
+                                (- right (,(+ (bison-space--pixel-width count)
+                                              (bison-space--right-gap))))))
+            (propertize count 'face 'bison-space-sidebar-header)))
+  (insert (bison-space--sidebar-newline)))
+
+(defun bison-space--sidebar-insert-line (row)
+  "Insert section ROW, a plist as `bison-space-define-section' describes."
+  (let* ((start (point))
+         (icon (let ((icon (plist-get row :icon)))
+                 (if (and icon (not (string-empty-p icon))) (concat icon " ") "")))
+         (right (string-join
+                 (delq nil (list (and (plist-get row :right)
+                                      (propertize (plist-get row :right)
+                                                  'face 'bison-space-sidebar-header))
+                                 (plist-get row :glyph)))
+                 " "))
+         (gap (+ (bison-space--pixel-width right) (bison-space--right-gap)))
+         (room (- (if-let* ((window (get-buffer-window (current-buffer) t)))
+                      (window-body-width window t)
+                    (* bison-space-sidebar-width (frame-char-width)))
+                  gap
+                  (bison-space--pixel-width (concat "    " icon))))
+         (label (truncate-string-pixelwise (or (plist-get row :label) "")
+                                           room (current-buffer) "…")))
+    (insert "  " icon label
+            (propertize " " 'display `(space :align-to (- right (,gap))))
+            right
+            (bison-space--sidebar-newline))
+    (when (plist-get row :current)
+      (add-face-text-property start (point) 'bison-space-sidebar-current))
+    (add-text-properties start (point)
+                         `(bison-space-row ,(or (plist-get row :action) #'ignore)
+                           mouse-face ,(list 'bison-space-sidebar-hover)
+                           ,@(and (plist-get row :help)
+                                  (list 'help-echo (plist-get row :help)))))))
+
+(defun bison-space--sidebar-insert-sections ()
+  "Insert the sections below the spaces, each that has rows."
+  (pcase-dolist (`(,id . ,props) bison-space-sidebar-sections)
+    (condition-case err
+        (if-let* ((insert (plist-get props :insert)))
+            (funcall insert)
+          (when-let* ((rows (funcall (plist-get props :rows))))
+            (bison-space--sidebar-heading (plist-get props :title))
+            (mapc #'bison-space--sidebar-insert-line rows)))
+      (error (message "Sidebar section %s: %s" id (error-message-string err))))))
+
+(bison-space-define-section 'agents :insert #'bison-space--sidebar-insert-agents)
 
 (defvar bison-space--sidebar-clock nil
   "Timer refreshing the agents' ages while the sidebar shows.")
@@ -1509,7 +1659,7 @@ follows the current space, so it is there on the next visit."
               (setq count (+ count (length spaces))))))
         (setq bison-space--sidebar-count count)
         (unless (bobp)
-          (bison-space--sidebar-insert-agents))
+          (bison-space--sidebar-insert-sections))
         (when (bobp)
           (insert (propertize
                    (substitute-command-keys
@@ -1609,10 +1759,13 @@ On an agent's row, the agent's space."
       (user-error "No space on this line")))
 
 (defun bison-space-sidebar-select ()
-  "Switch to the space on this sidebar line, or show the agent on it."
+  "Switch to the space on this sidebar line, or act on its row.
+An agent's row shows the agent; a section's row runs its action."
   (interactive)
-  (if-let* ((agent (get-text-property (line-beginning-position)
-                                      'bison-space-agent-row)))
+  (if-let* ((action (get-text-property (line-beginning-position) 'bison-space-row)))
+      (funcall action)
+   (if-let* ((agent (get-text-property (line-beginning-position)
+                                       'bison-space-agent-row)))
       (pcase-let ((`(,group ,name) (buffer-local-value 'bison-space-agent agent)))
         (tab-bar-select-tab
          (1+ (or (bison-space--tab-index group name)
@@ -1620,10 +1773,10 @@ On an agent's row, the agent's space."
         (bison-space--show-agent agent))
     (pcase-let ((`(,group . ,name) (bison-space--at-point)))
       (when-let* ((index (bison-space--tab-index group name)))
-        (tab-bar-select-tab (1+ index))))))
+        (tab-bar-select-tab (1+ index)))))))
 
 (defun bison-space-sidebar-next (n)
-  "Move to the Nth next space or agent in the sidebar, skipping headings."
+  "Move to the Nth next row in the sidebar, skipping headings."
   (interactive "p")
   (let ((step (if (< n 0) -1 1))
         (target (point)))
@@ -1635,14 +1788,15 @@ On an agent's row, the agent's space."
                       (zerop (forward-line step))
                       (not (eobp)))
             (when (or (get-text-property (point) 'bison-space)
-                      (get-text-property (point) 'bison-space-agent-row))
+                      (get-text-property (point) 'bison-space-agent-row)
+                      (get-text-property (point) 'bison-space-row))
               (setq found (point))))
           (when found
             (setq target found)))))
     (goto-char target)))
 
 (defun bison-space-sidebar-previous (n)
-  "Move to the Nth previous space or agent in the sidebar, skipping headings."
+  "Move to the Nth previous row in the sidebar, skipping headings."
   (interactive "p")
   (bison-space-sidebar-next (- n)))
 
@@ -1739,7 +1893,7 @@ In an agent or the launcher
 
 In the sidebar
 \\<bison-space-sidebar-mode-map>
-  \\[bison-space-sidebar-select]	Switch to the space, or show the agent, at point
+  \\[bison-space-sidebar-select]	Switch to the space, show the agent, or act on the row at point
   \\[bison-space-switch]	Search all spaces and projects
   \\[bison-space-sidebar-next] \\[bison-space-sidebar-previous]	Next / previous space or agent
   \\[bison-space-add-agent]	Start an agent in the space at point
@@ -1771,6 +1925,9 @@ Agent status (right edge of a row)
   *...: codex<2>*; \\[consult-buffer] finds them when the layout is gone.
   Harnesses and the tmux session name are customizable:
   M-x customize-group RET bison-space.
+  More sidebar sections come from outside this module: Lisp in
+  ~/.config/emacs-local/ (`bison-local-dir') calling
+  `bison-space-define-section'.
   Closing a space leaves its tmux session running; removing the
   worktree ends it.  wt reports land in *wt*.
 
