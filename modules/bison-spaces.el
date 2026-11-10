@@ -1164,14 +1164,14 @@ happens while the sidebar is hidden."
    (mapcar (lambda (state)
              (cons state (concat (bison-space--status-glyph
                                   (list :state state))
-                                 "%c")))
+                                 "%x")))
            '(working blocked done error))
    (mapcar (lambda (kind)
              (cons kind (concat (bison-space--status-glyph
                                  (list :state 'blocked :kind kind))
-                                "%c")))
+                                "%x")))
            '(permission question auth))
-   `((progress . ,(propertize "%p%%%c" 'face 'bison-space-status-working)))))
+   `((progress . ,(propertize "%p%%%x" 'face 'bison-space-status-working)))))
 
 ;;;; Agent status: desktop notifications
 
