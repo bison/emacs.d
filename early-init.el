@@ -26,7 +26,9 @@
 
 ;; Background native compilation of third-party packages warns about
 ;; things only their authors can fix.  Log those to *Warnings* without
-;; popping the buffer up.
+;; popping the buffer up.  Declared, as comp-run.el defines it and isn't
+;; loaded yet; Emacs without native compilation just ignores it.
+(defvar native-comp-async-report-warnings-errors)
 (setq native-comp-async-report-warnings-errors 'silent)
 
 ;; Frame chrome, set here so the first frame is never drawn with it.
