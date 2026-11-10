@@ -24,6 +24,11 @@
 ;; straight.el manages packages; keep package.el out of the way.
 (setq package-enable-at-startup nil)
 
+;; Background native compilation of third-party packages warns about
+;; things only their authors can fix.  Log those to *Warnings* without
+;; popping the buffer up.
+(setq native-comp-async-report-warnings-errors 'silent)
+
 ;; Frame chrome, set here so the first frame is never drawn with it.
 ;; macOS keeps the menu bar: it lives in the system bar, costs nothing.
 ;; TTY frames drop it in `bison-defaults--setup-frame' regardless.
