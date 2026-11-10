@@ -1394,25 +1394,18 @@ A cut string ends in an ellipsis."
       (bison-space--git-refresh root))
     info))
 
-(defun bison-space--git-tail (root name)
-  "Return the git tail for space NAME at ROOT, or an empty string."
+(defun bison-space--git-tail (root name &optional room)
+  "Return the git tail for space NAME at ROOT, or an empty string.
+ROOM, if given, is the most pixels the tail may take; the branch is
+cut to fit it, and dropped when not even an ellipsis of it fits."
   (let* ((info (and root (bison-space--git-info root)))
          (branch (plist-get info :branch))
          (ahead (or (plist-get info :ahead) 0))
          (behind (or (plist-get info :behind) 0))
          (dirty (or (plist-get info :dirty) 0))
-         (parts
+         (counts
           (delq nil
-                (list (and branch
-                           (not (member branch '("main" "master")))
-                           ;; wt names a worktree's directory after its
-                           ;; branch, slashes and all turned to dashes.
-                           (not (equal (replace-regexp-in-string "[^[:alnum:]._-]" "-" branch)
-                                       name))
-                           (truncate-string-to-width
-                            (if (equal branch "(detached)") "detached" branch)
-                            14 nil nil "…"))
-                      (and (> ahead 0)
+                (list (and (> ahead 0)
                            (propertize (format "↑%d" ahead)
                                        'face 'bison-space-sidebar-git-ahead))
                       (and (> behind 0)
@@ -1420,12 +1413,30 @@ A cut string ends in an ellipsis."
                                        'face 'bison-space-sidebar-git-behind))
                       (and (> dirty 0)
                            (propertize (format "~%d" dirty)
-                                       'face 'bison-space-sidebar-git-dirty))))))
-    (if (null parts)
-        ""
-      (let ((tail (string-join parts " ")))
-        (add-face-text-property 0 (length tail) 'bison-space-sidebar-git t tail)
-        tail))))
+                                       'face 'bison-space-sidebar-git-dirty)))))
+         (counts (and counts (string-join counts " ")))
+         (label (and branch
+                     (not (member branch '("main" "master")))
+                     ;; wt names a worktree's directory after its
+                     ;; branch, slashes and all turned to dashes.
+                     (not (equal (replace-regexp-in-string "[^[:alnum:]._-]" "-" branch)
+                                 name))
+                     (truncate-string-to-width
+                      (if (equal branch "(detached)") "detached" branch)
+                      14 nil nil "…"))))
+    (when counts
+      (add-face-text-property 0 (length counts) 'bison-space-sidebar-git t counts))
+    (when label
+      (setq label (propertize label 'face 'bison-space-sidebar-git))
+      (when room
+        (let ((fit (bison-space--truncate
+                    label
+                    (- room (if counts
+                                (bison-space--pixel-width (concat " " counts))
+                              0)))))
+          ;; A lone ellipsis says nothing; leave the branch out instead.
+          (setq label (and (string-match-p "[^…]" fit) fit)))))
+    (string-join (delq nil (list label counts)) " ")))
 
 (defun bison-space--sidebar-insert-row (space indent icon text &optional status)
   "Insert a row for SPACE at INDENT: ICON, then TEXT.
@@ -1434,17 +1445,30 @@ STATUS, a status plist, is shown at the right edge."
   (pcase-let* ((`(,group ,name ,current) space)
                (start (point))
                (glyph (if status (bison-space--status-glyph status) ""))
+               (icon (bison-space--icon icon))
+               (label (propertize text 'face (unless space 'bison-space-sidebar-closed)))
+               ;; What the tail may take: the row's width less the
+               ;; name, the glyph, the right gap and two spaces kept
+               ;; clear between the name and the tail.
+               (room (- (if-let* ((window (get-buffer-window (current-buffer) t)))
+                            (window-body-width window t)
+                          (* bison-space-sidebar-width (frame-char-width)))
+                        (bison-space--right-gap)
+                        (bison-space--pixel-width
+                         (concat (make-string indent ?\s) icon label "  "))
+                        (if (string-empty-p glyph)
+                            0
+                          (bison-space--pixel-width (concat " " glyph)))))
                (tail (if space
                          (bison-space--git-tail
-                          (gethash (cons group name) bison-space--roots) name)
+                          (gethash (cons group name) bison-space--roots) name room)
                        ""))
                (right (concat tail
                               (and (not (string-empty-p tail))
                                    (not (string-empty-p glyph))
                                    " ")
                               glyph)))
-    (insert (make-string indent ?\s) (bison-space--icon icon)
-            (propertize text 'face (unless space 'bison-space-sidebar-closed))
+    (insert (make-string indent ?\s) icon label
             ;; In pixels, as this buffer draws the glyph: columns would
             ;; count the frame's larger font, not the sidebar's smaller
             ;; one or the icon font's.
