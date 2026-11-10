@@ -804,6 +804,90 @@ branch is checked out.  RET at either takes the default."
               (file-name-as-directory (alist-get 'path result))))
          (bison-space))))))
 
+(defun bison-space--parse-pr (pr)
+  "Return (NUMBER . REPO) for pull request PR, or nil if it is neither.
+PR is a number, optionally with a leading #, or the PR's web URL.
+REPO is HOST/OWNER/NAME from the URL, downcased; nil for a number."
+  (cond ((string-match "\\`#?\\([0-9]+\\)\\'" pr)
+         (list (match-string 1 pr)))
+        ((string-match "\\`https?://\\([^/]+/[^/]+/[^/]+\\)/pull/\\([0-9]+\\)"
+                       pr)
+         (cons (match-string 2 pr) (downcase (match-string 1 pr))))))
+
+(defun bison-space--remote-repos (dir)
+  "Return HOST/OWNER/NAME, downcased, for each git remote of DIR.
+Remote URLs may be https, ssh:// or scp-style, with or without .git."
+  (let ((default-directory dir))
+    (delq nil
+          (mapcar
+           (lambda (line)
+             (let ((url (cadr (split-string line))))
+               (and url
+                    (string-match
+                     (concat "\\`\\(?:[a-z+]+://\\)?\\(?:[^@/]+@\\)?"
+                             "\\([^:/]+\\)[:/]\\(.+?\\)\\(?:\\.git\\)?/*\\'")
+                     url)
+                    (downcase (concat (match-string 1 url) "/"
+                                      (match-string 2 url))))))
+           (process-lines-ignore-status
+            "git" "config" "--get-regexp" "^remote\\..*\\.url$")))))
+
+(defun bison-space--clone-of (repo current)
+  "Return the main checkout of a local clone of REPO, or nil.
+REPO is HOST/OWNER/NAME, as `bison-space--parse-pr' gives it.  Try
+the main checkout of CURRENT, a space's root or nil, first; then
+OWNER/NAME under `bison-code-dir', where it usually is; then every
+known project.  A clone matches when any of its remotes is REPO."
+  (let ((owner/name (string-join (cdr (split-string repo "/")) "/")))
+    (seq-find
+     (lambda (dir)
+       (and (file-directory-p dir)
+            (member repo (bison-space--remote-repos dir))))
+     (seq-uniq
+      (mapcar #'bison-space--repo-dir
+              `(,@(and current (list current))
+                ,(expand-file-name owner/name bison-code-dir)
+                ,@(project-known-project-roots)))))))
+
+(defun bison-space-checkout-pr (pr)
+  "Check out pull request PR in a worktree of its own, in its own space.
+PR is a number or the PR's URL.  The worktree is .worktrees/pr-N of
+the repository: for a number, the current project's, or in the
+sidebar the one of the line at point; for a URL, whichever local clone
+has the URL's repository as a remote, the current one first.  The
+branch is the PR's own.  wt resolves the PR with gh, and for a PR from
+a fork sets the branch to push to the fork.  If the worktree already
+exists, just open its space."
+  (interactive (list (string-trim (read-string "Pull request (number or URL): "))))
+  (pcase-let*
+      ((`(,number . ,remote) (or (bison-space--parse-pr pr)
+                                 (user-error "Not a PR number or URL: %s" pr)))
+       (repo
+        (if remote
+            ;; Outside any project, a URL needs none: don't prompt for one.
+            (let ((current (and (or (derived-mode-p 'bison-space-sidebar-mode)
+                                    (project-current))
+                                (nth 2 (bison-space--context)))))
+              (or (bison-space--clone-of remote current)
+                  (user-error "No local clone of %s" remote)))
+          (bison-space--repo-dir (or (nth 2 (bison-space--context))
+                                     (user-error "Reopen this space first")))))
+       ;; From the main checkout, even when called from another worktree.
+       (default-directory repo)
+       (path (expand-file-name (concat ".worktrees/pr-" number) repo)))
+    (if (file-directory-p path)
+        (let ((default-directory (file-name-as-directory path)))
+          (bison-space))
+      (message "Checking out PR #%s in %s..." number
+               (abbreviate-file-name (directory-file-name repo)))
+      (bison-space--wt
+       `("switch" ,(if remote pr (concat "pr:" number))
+         "--no-cd" "--format" "json" "--path" ,path)
+       (lambda (result)
+         (let ((default-directory
+                (file-name-as-directory (alist-get 'path result))))
+           (bison-space)))))))
+
 (defun bison-space-remove-worktree (&optional force)
   "Remove the current space's worktree with wt, then close the space.
 In the sidebar, the space on the line at point.  wt refuses a dirty
@@ -1997,6 +2081,7 @@ An agent's row shows the agent; a section's row runs its action."
   "k" #'bison-space-close
   "a" #'bison-space-add-agent
   "c" #'bison-space-new-worktree
+  "P" #'bison-space-checkout-pr
   "D" #'bison-space-remove-worktree
   "n" #'bison-space-sidebar-next
   "p" #'bison-space-sidebar-previous
@@ -2068,6 +2153,7 @@ Everywhere
   \\[bison-space-new-worktree]	New worktree on a new branch, in a new space
 	(\\[universal-argument] \\[bison-space-new-worktree]: also the base branch, and a stream name
 	 for the worktree when the work will outlive its first branch)
+  \\[bison-space-checkout-pr]	Check out a pull request in worktree pr-N, in a new space
   \\[bison-space-remove-worktree]	Remove this space's worktree, then close it
 	(\\[universal-argument] \\[bison-space-remove-worktree]: even if dirty or unmerged)
   \\[bison-space-sidebar-toggle]	Show and focus the sidebar; again to hide it
@@ -2090,6 +2176,7 @@ In the sidebar
   \\[bison-space-reset]	Reset the space at point
   \\[bison-space-close]	Close the space at point
   \\[bison-space-new-worktree]	New worktree of the repo at point
+  \\[bison-space-checkout-pr]	Check out a pull request of the repo at point
   \\[bison-space-remove-worktree]	Remove the worktree at point
   \\[bison-space-help]	This help
   \\[bison-space-sidebar-toggle]	Hide the sidebar
@@ -2155,6 +2242,7 @@ Font size (everywhere)
 (global-set-key (kbd "C-c b") #'bison-space-sidebar-toggle)
 (global-set-key (kbd "C-c N") #'bison-space-new-worktree)
 (global-set-key (kbd "C-c D") #'bison-space-remove-worktree)
+(global-set-key (kbd "C-c P") #'bison-space-checkout-pr)
 (global-set-key (kbd "C-c R") #'bison-space-reset)
 (global-set-key (kbd "C-c f") #'bison-space-switch)
 (global-set-key (kbd "C-c ?") #'bison-space-help)
