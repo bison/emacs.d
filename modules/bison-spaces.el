@@ -32,6 +32,7 @@
 
 (require 'bison-lib)
 (require 'cl-lib)
+(require 'multisession)
 (require 'project)                      ; `project-root' is not autoloaded
 (require 'subr-x)
 
@@ -563,7 +564,8 @@ that still exist are reused; a missing shell is recreated."
     (tab-bar-new-tab)
     (tab-bar-rename-tab name)
     (tab-bar-change-tab-group group))
-  (bison-space--layout group name root))
+  (bison-space--layout group name root)
+  (bison-space--save))
 
 (defun bison-space (&optional resume)
   "Switch to the current project's space, making it on first use.
@@ -919,6 +921,175 @@ The space stays open if wt fails."
            ;; Its directory is gone; a shell there has nothing to do.
            (bison-space--kill-tmux-session group name)
            (message "Removed worktree %s" label)))))))
+
+;;;; Saving and restoring
+
+;; The open spaces are saved as a list of their roots, in tab order,
+;; whenever one opens or closes, and reopened when the first graphical
+;; frame appears -- at startup, or the daemon's first client.  Shells
+;; reattach to their tmux sessions; agents are gone.  Each change adds
+;; a snapshot to a short history, so `bison-space-restore' can bring
+;; back an older list.  multisession keeps it on disk, under
+;; no-littering's var/, written atomically on every change.
+
+(defcustom bison-space-saved-snapshots 30
+  "How many saved lists of open spaces to keep, newest first."
+  :type 'natnum)
+
+(define-multisession-variable bison-space--saved nil
+  "Saved lists of open spaces, newest first.
+Each is a plist: :time, in seconds; :spaces, the spaces' roots in tab
+order, abbreviated; and :selected, the root of the space selected
+when Emacs last exited with that list open, or when it was saved."
+  :package "bison")
+
+(defvar bison-space--saving nil
+  "Non-nil once the saved spaces were restored, so changes are saved.
+Until then, a frame with no spaces yet would overwrite the list.")
+
+(defvar bison-space--restoring nil
+  "Non-nil while restoring, so each space opened is not saved alone.")
+
+(defun bison-space--open-spaces (&optional frame)
+  "Return (ROOTS . SELECTED) for FRAME's spaces.
+ROOTS are their roots in tab order, abbreviated; SELECTED is the
+selected space's, or nil when a tab of no space is selected."
+  (let (roots selected)
+    (dolist (tab (funcall tab-bar-tabs-function frame))
+      (when-let* ((group (alist-get 'group tab))
+                  ((string-search "/" group))
+                  (root (gethash (cons group (alist-get 'name tab))
+                                 bison-space--roots)))
+        (push (abbreviate-file-name root) roots)
+        (when (eq (car tab) 'current-tab)
+          (setq selected (car roots)))))
+    (cons (nreverse roots) selected)))
+
+(defun bison-space--save ()
+  "Save the selected frame's spaces, if they are not what was last saved."
+  (when (and bison-space--saving (not bison-space--restoring))
+    (pcase-let ((`(,roots . ,selected) (bison-space--open-spaces))
+                (history (multisession-value bison-space--saved)))
+      (unless (equal roots (plist-get (car history) :spaces))
+        (setf (multisession-value bison-space--saved)
+              (seq-take (cons (list :time (time-convert nil 'integer)
+                                    :spaces roots
+                                    :selected selected)
+                              history)
+                        bison-space-saved-snapshots))))))
+
+(defun bison-space--save-later (&rest _)
+  "Save the spaces once the current command, such as closing a tab, is done."
+  (run-at-time 0 nil #'bison-space--save))
+
+(defun bison-space--save-selected ()
+  "Record which space is selected in the newest snapshot, on exit.
+Look in the first frame that has spaces: a daemon exits with none
+selected, or with its client frames gone and the list as saved."
+  (when bison-space--saving
+    (when-let* ((frame (seq-find (lambda (frame)
+                                   (car (bison-space--open-spaces frame)))
+                                 (frame-list))))
+      (pcase-let ((`(,roots . ,selected) (bison-space--open-spaces frame))
+                  (`(,newest . ,older) (multisession-value bison-space--saved)))
+        (when (and (equal roots (plist-get newest :spaces))
+                   (not (equal selected (plist-get newest :selected))))
+          (setf (multisession-value bison-space--saved)
+                (cons (plist-put (copy-sequence newest) :selected selected)
+                      older)))))))
+
+(defun bison-space--restore (snapshot)
+  "Open the spaces of SNAPSHOT that are not open, then select its selected.
+Skip a root that no longer exists, such as a removed worktree."
+  (let ((opened 0) missing)
+    (let ((bison-space--restoring t))
+      (dolist (root (plist-get snapshot :spaces))
+        (let ((root (file-name-as-directory (expand-file-name root))))
+          (if (not (file-directory-p root))
+              (push (abbreviate-file-name root) missing)
+            (pcase-let* ((`(,org ,repo ,name) (bison-space--names root))
+                         (group (concat org "/" repo)))
+              (unless (bison-space--tab-index group name)
+                (with-demoted-errors "Restoring a space: %S"
+                  (bison-space--open root group name)
+                  (cl-incf opened)))))))
+      (when-let* ((selected (plist-get snapshot :selected))
+                  (names (bison-space--names (expand-file-name selected)))
+                  (index (bison-space--tab-index
+                          (concat (nth 0 names) "/" (nth 1 names))
+                          (nth 2 names))))
+        (tab-bar-select-tab (1+ index))))
+    (bison-space--sidebar-sync)
+    (bison-space--save)
+    (message "Restored %d space%s%s" opened (if (= opened 1) "" "s")
+             (if missing
+                 (format "; gone: %s" (string-join (nreverse missing) ", "))
+               ""))))
+
+(defun bison-space--auto-restore (&optional frame)
+  "Restore the last saved spaces into FRAME, or the selected frame.
+Only in a graphical frame, and only when no other one has spaces: at
+startup, the daemon's first client, or a new frame after the last one
+holding spaces was closed.  Saving starts after the first try."
+  (let ((frame (or frame (selected-frame))))
+    (when (and (not noninteractive)
+               (display-graphic-p frame)
+               (not (seq-some (lambda (other)
+                                (and (not (eq other frame))
+                                     (display-graphic-p other)
+                                     (car (bison-space--open-spaces other))))
+                              (frame-list))))
+      ;; After the frame is up: a client's frame is still being made
+      ;; when `server-after-make-frame-hook' runs.
+      (run-at-time
+       0 nil
+       (lambda ()
+         (when (frame-live-p frame)
+           (with-selected-frame frame
+             (unwind-protect
+                 (when-let* ((snapshot (car (multisession-value
+                                             bison-space--saved))))
+                   (bison-space--restore snapshot))
+               (setq bison-space--saving t)))))))))
+
+(defun bison-space--describe-snapshot (snapshot)
+  "Return a line describing SNAPSHOT: when, how many spaces, which."
+  (let ((spaces (plist-get snapshot :spaces)))
+    (format "%s  %d space%s  %s"
+            (format-time-string "%Y-%m-%d %H:%M" (plist-get snapshot :time))
+            (length spaces) (if (= (length spaces) 1) "" "s")
+            (mapconcat (lambda (root)
+                         (pcase-let ((`(,_ ,repo ,name) (bison-space--names
+                                                         (expand-file-name root))))
+                           (bison-space--label repo name)))
+                       spaces ", "))))
+
+(defun bison-space-restore (snapshot)
+  "Open the spaces of SNAPSHOT, a saved list chosen with completion.
+The newest is first: the spaces open when they last changed.  Spaces
+already open stay; those missing open, then the one selected when the
+list was saved is selected."
+  (interactive
+   (let* ((history (or (multisession-value bison-space--saved)
+                       (user-error "No saved spaces")))
+          (table (make-hash-table :test #'equal))
+          (keys (seq-map-indexed
+                 (lambda (snapshot i)
+                   ;; Numbered, so two lists saved in one minute differ.
+                   (let ((key (format "%2d  %s" (1+ i)
+                                      (bison-space--describe-snapshot snapshot))))
+                     (puthash key snapshot table)
+                     key))
+                 history)))
+     (list (gethash (completing-read
+                     "Restore spaces: "
+                     (lambda (string pred action)
+                       (if (eq action 'metadata)
+                           '(metadata (display-sort-function . identity))
+                         (complete-with-action action keys string pred)))
+                     nil t)
+                    table))))
+  (bison-space--restore snapshot))
 
 ;;;; Sidebar
 
@@ -2150,6 +2321,8 @@ Everywhere
 	(\\[universal-argument] \\[bison-space-add-agent]: resume its last session)
   \\[bison-space-reset]	Reset this space's layout
   \\[bison-space-close]	Close this space and kill its terminals
+  \\[bison-space-restore]	Reopen the spaces of a saved list; the open ones are
+	 saved on every change and reopened at startup
   \\[bison-space-new-worktree]	New worktree on a new branch, in a new space
 	(\\[universal-argument] \\[bison-space-new-worktree]: also the base branch, and a stream name
 	 for the worktree when the work will outlive its first branch)
@@ -2236,6 +2409,14 @@ Font size (everywhere)
 
 (add-hook 'tab-bar-tab-pre-close-functions #'bison-space--sidebar-sync-later)
 (add-hook 'window-size-change-functions #'bison-space--sidebar-fit)
+
+;; Save on every close, however the tab went; `bison-space--open' saves
+;; on every open.  Restore at startup, or for a daemon at its first
+;; graphical frame.
+(add-hook 'tab-bar-tab-pre-close-functions #'bison-space--save-later)
+(add-hook 'kill-emacs-hook #'bison-space--save-selected)
+(add-hook 'window-setup-hook #'bison-space--auto-restore)
+(add-hook 'server-after-make-frame-hook #'bison-space--auto-restore)
 
 (global-set-key (kbd "C-c s") #'bison-space)
 (global-set-key (kbd "C-c S") #'bison-space-close)

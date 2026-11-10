@@ -54,7 +54,8 @@
 ;; or directory some package writes at runtime; load what defines them
 ;; and check each resolves under the cache directory.
 (dolist (lib '(tramp transient recentf savehist bookmark eshell em-hist url nsm
-               project dape multiple-cursors org-id auto-save))
+               project dape multiple-cursors org-id auto-save
+               multisession))
   (require lib nil t))
 
 (dolist (var (append (and (boundp 'native-comp-eln-load-path)
@@ -67,6 +68,7 @@
                eshell-directory-name
                eshell-history-file-name
                mc/list-file
+               multisession-directory
                nsm-settings-file
                org-id-locations-file
                project-list-file
