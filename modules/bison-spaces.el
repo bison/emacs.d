@@ -1028,15 +1028,17 @@ Skip a root that no longer exists, such as a removed worktree."
 
 (defun bison-space--auto-restore (&optional frame)
   "Restore the last saved spaces into FRAME, or the selected frame.
-Only in a graphical frame, and only when no other one has spaces: at
-startup, the daemon's first client, or a new frame after the last one
-holding spaces was closed.  Saving starts after the first try."
+Only in a graphical frame, and only when no frame has spaces, this one
+included: at startup, the daemon's first client, or a new frame after
+the last one holding spaces was closed.  Not this one either, because
+`server-after-make-frame-hook' also runs when emacsclient visits a
+file in an existing frame, as $EDITOR does.  Saving starts after the
+first try."
   (let ((frame (or frame (selected-frame))))
     (when (and (not noninteractive)
                (display-graphic-p frame)
                (not (seq-some (lambda (other)
-                                (and (not (eq other frame))
-                                     (display-graphic-p other)
+                                (and (display-graphic-p other)
                                      (car (bison-space--open-spaces other))))
                               (frame-list))))
       ;; After the frame is up: a client's frame is still being made
