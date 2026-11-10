@@ -443,6 +443,58 @@ view, the window shows whatever Emacs picked instead."
   (add-hook 'ghostel-exit-functions #'bison-space--agent-exited))
 (add-hook 'tab-bar-tab-post-select-functions #'bison-space--repair-agent-window)
 
+;;;; Editing for an agent
+
+;; An agent's $EDITOR is emacsclient: Claude Code's ctrl+g opens the
+;; prompt with it.  The server would show the prompt in the shell
+;; window, since the agent window is dedicated, and leave that window
+;; selected when done.  Instead it replaces the agent, whose terminal
+;; only waits for Emacs meanwhile, and the agent is back when done.
+
+(defvar server-window)
+(declare-function server-switch-buffer "server")
+
+(defvar-local bison-space--edited-for nil
+  "In a buffer emacsclient shows in an agent window: (WINDOW . AGENT).")
+(put 'bison-space--edited-for 'permanent-local t)
+
+(defun bison-space--server-window (buffer)
+  "Show emacsclient's BUFFER, in the agent window if it is selected.
+The value of `server-window'.  There, the window is not dedicated
+while BUFFER shows: Emacs deletes a dedicated window when its buffer
+dies, and the server kills BUFFER when done.  Anywhere else, the
+server picks a window as it would by itself."
+  (let* ((window (selected-window))
+         (agent (window-buffer window)))
+    (if (and (eq (window-dedicated-p window) 'bison-space)
+             (buffer-local-value 'bison-space-agent agent))
+        (progn
+          (set-window-dedicated-p window nil)
+          (switch-to-buffer buffer nil t)
+          (with-current-buffer buffer
+            (setq bison-space--edited-for (cons window agent))))
+      (let ((server-window nil))
+        (server-switch-buffer buffer)))))
+
+(defun bison-space--server-done ()
+  "Put the agent back in the window this buffer took from it, and select it.
+In `server-done-hook', before the server kills or buries the buffer.
+If the agent died meanwhile, the window shows the next one, or the
+launcher."
+  (pcase-let ((`(,window . ,agent) bison-space--edited-for))
+    (when (and (window-live-p window)
+               (eq (window-buffer window) (current-buffer)))
+      (when (buffer-live-p agent)
+        (set-window-buffer window agent))
+      (set-window-dedicated-p window 'bison-space)
+      (select-window window)
+      (bison-space--repair-agent-window))
+    (setq bison-space--edited-for nil)))
+
+(with-eval-after-load 'server
+  (setq server-window #'bison-space--server-window)
+  (add-hook 'server-done-hook #'bison-space--server-done))
+
 ;;;; Launcher
 
 (defvar-local bison-space--launcher-space nil
