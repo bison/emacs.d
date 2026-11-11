@@ -149,14 +149,22 @@
   (bison-font-size--adjust ?-))
 
 (defun bison-font-size-reset ()
-  "Reset the font size everywhere."
+  "Reset the font size everywhere, including any one buffer's own zoom."
   (interactive)
+  (dolist (buffer (buffer-list))
+    (with-current-buffer buffer
+      (when (bound-and-true-p text-scale-mode)
+        (text-scale-set 0))))
   (bison-font-size--adjust ?0))
 
 (global-set-key (kbd "s-=") #'bison-font-size-increase)
 (global-set-key (kbd "s-+") #'bison-font-size-increase)
 (global-set-key (kbd "s--") #'bison-font-size-decrease)
 (global-set-key (kbd "s-0") #'bison-font-size-reset)
+
+;; A trackpad pinch zooms the one buffer under it (`text-scale-pinch'),
+;; too easily done by accident; font size goes through the keys above.
+(global-set-key [pinch] #'ignore)
 
 (provide 'bison-ui)
 ;;; bison-ui.el ends here
