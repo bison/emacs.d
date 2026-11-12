@@ -38,11 +38,25 @@ lock:
 .PHONY: thaw
 thaw:
 	$(BATCH) -l scripts/test.el --eval '(straight-thaw-versions)'
+	$(MAKE) rebuild
 
 # Pull every package to its latest upstream, then re-lock.
 .PHONY: update
 update:
 	$(BATCH) -l scripts/test.el --eval '(straight-pull-all)' --eval '(straight-freeze-versions t)'
+	$(MAKE) rebuild
+
+# Rebuild every package whose repository changed since its last build.
+# Startup only notices edits saved inside Emacs (see
+# `straight-check-for-modifications'), so after a pull or thaw the old
+# .elc files keep loading, next to native code that JIT compilation
+# builds from the new sources.  This has to be a fresh Emacs: in batch
+# the whole run is one straight transaction, so a `straight-check-all'
+# after init.el has registered every package is skipped as a duplicate.
+# Scanning at startup instead rebuilds them while init.el loads.
+.PHONY: rebuild
+rebuild:
+	$(BATCH) --eval "(setq straight-check-for-modifications '(find-at-startup))" -l scripts/test.el
 
 # Compile tree-sitter grammars that are missing from the cache.
 .PHONY: grammars
