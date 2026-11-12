@@ -108,8 +108,10 @@ Characters tmux does not allow become dashes."
   "Return (ORG REPO NAME) for the space at project ROOT.
 ORG is the directory holding the repository under `bison-code-dir',
 or \"other\" outside it.  NAME is the worktree's directory name, or
-REPO for the main checkout."
-  (let* ((dir (directory-file-name (expand-file-name root)))
+REPO for the main checkout.  ROOT is resolved through symlinks first,
+so ~/.emacs.d linked to a checkout under `bison-code-dir' is named for
+the checkout."
+  (let* ((dir (directory-file-name (file-truename root)))
          (name (file-name-nondirectory dir))
          (parent (directory-file-name (file-name-directory dir)))
          (repo-dir (if (equal (file-name-nondirectory parent) ".worktrees")
@@ -120,7 +122,7 @@ REPO for the main checkout."
     ;; directory doesn't exist, as `bison-code-dir' doesn't in CI.
     (list (if (string-prefix-p
                (file-name-as-directory (file-truename bison-code-dir))
-               (file-name-as-directory (file-truename org-dir)))
+               (file-name-as-directory org-dir))
               (file-name-nondirectory org-dir)
             "other")
           (file-name-nondirectory repo-dir)

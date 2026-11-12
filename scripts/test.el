@@ -48,6 +48,19 @@
         (equal (bison-space--names "/elsewhere/repo/")
                '("other" "repo" "repo"))))
  "spaces group by org, then repository")
+(bison-test--assert
+ (let* ((tmp (file-name-as-directory (make-temp-file "bison-test-" t)))
+        (bison-code-dir (expand-file-name "Code" tmp))
+        (repo (expand-file-name "org/repo" bison-code-dir))
+        (link (expand-file-name "link" tmp)))
+   (unwind-protect
+       (progn
+         (make-directory repo t)
+         (make-symbolic-link repo link)
+         (equal (bison-space--names (file-name-as-directory link))
+                '("org" "repo" "repo")))
+     (delete-directory tmp t)))
+ "a symlink to a checkout is named for the checkout")
 
 
 ;; Nothing may write into the checkout.  Every variable here names a file
