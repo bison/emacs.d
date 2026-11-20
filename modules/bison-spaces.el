@@ -606,14 +606,31 @@ that still exist are reused; a missing shell is recreated."
     (set-window-dedicated-p nil nil)
     (bison-space--terminal (format "*%s: shell*" label)
                            (bison-space--shell-command group name))
-    (let ((window (split-window-right))
+    (let ((shell (selected-window))
+          (window (split-window-right))
           (agents (bison-space--agents group name)))
       (select-window window)
       (switch-to-buffer
        (or (seq-find (lambda (buffer) (memq buffer agents)) (buffer-list))
            (bison-space--launcher group name root))
        nil t)
-      (set-window-dedicated-p window 'bison-space))))
+      (set-window-dedicated-p window 'bison-space)
+      (select-window shell))))
+
+(defun bison-space--select-shell (&rest _)
+  "Select the shell window, if the selected tab is a space showing one.
+From `tab-bar-tab-post-select-functions': a space is entered at its
+shell, whichever window was selected when it was left.  Showing an
+agent from elsewhere selects the agent after this."
+  (when-let* ((tab (tab-bar--current-tab))
+              ((bison-space--space-tab-p tab))
+              (window (get-buffer-window
+                       (format "*%s: shell*"
+                               (bison-space--label (alist-get 'group tab)
+                                                   (alist-get 'name tab))))))
+    (select-window window)))
+
+(add-hook 'tab-bar-tab-post-select-functions #'bison-space--select-shell)
 
 (defun bison-space--open (root group name)
   "Make the tab for space NAME in GROUP at ROOT."
