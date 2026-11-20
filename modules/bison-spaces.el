@@ -24,9 +24,11 @@
 ;;
 ;; The tab bar stays hidden.  Tabs are only the mechanism -- each keeps
 ;; its own window layout -- and the open spaces are listed instead in a
-;; sidebar, as a tree of org, repo and worktree.  Each tab's saved
-;; layout includes the sidebar or not, depending on how it was left, so
-;; whether it shows is a frame parameter re-applied on every switch.
+;; sidebar, as a tree of org, repo and worktree, with any other tab --
+;; home, for work outside any stream -- listed below them.  Each tab's
+;; saved layout includes the sidebar or not, depending on how it was
+;; left, so whether it shows is a frame parameter re-applied on every
+;; switch: shown, on a graphical frame, until hidden.
 
 ;;; Code:
 
@@ -56,7 +58,10 @@
 (use-package tab-bar
   :straight (:type built-in)
   :custom
-  (tab-bar-show nil))
+  (tab-bar-show nil)
+  ;; A new tab joins no group: spaces set theirs, and any other tab
+  ;; made from a space, home included, would otherwise pass for one.
+  (tab-bar-new-tab-group nil))
 ;;;; Settings
 
 (defgroup bison-space nil
@@ -654,13 +659,14 @@ A tmux session is left running, to reattach to later."
                             (delq nil (list (get-buffer (format "*%s: shell*" label))
                                             (get-buffer (format "*%s: agents*" label))))))
       (kill-buffer buffer))
-    (when-let* ((index (bison-space--tab-index group name)))
+    (when (bison-space--tab-index group name)
       (let ((inhibit-message t))
-        ;; tab-bar keeps a sole tab open rather than close it.
+        ;; tab-bar keeps a sole tab open rather than close it; leave
+        ;; home instead.
         (when (= (length (funcall tab-bar-tabs-function)) 1)
-          (tab-bar-new-tab)
-          (switch-to-buffer "*scratch*"))
-        (tab-bar-close-tab (1+ index))))
+          (bison-space--make-home))
+        ;; Looked up again: the new tab may have moved it.
+        (tab-bar-close-tab (1+ (bison-space--tab-index group name)))))
     (remhash (cons group name) bison-space--roots)
     (bison-space--sidebar-sync)))
 
@@ -761,6 +767,75 @@ its space."
             (tab-bar-select-tab (1+ (bison-space--tab-index group name)))
           (let ((default-directory root))
             (bison-space)))))))
+
+;;;; Home and other tabs
+
+;; Spaces are the tabs grouped ORG/REPO.  Any other tab is a plain one,
+;; for work that belongs to no stream, and the sidebar lists those in
+;; its Tabs section.  One of them, `bison-space-home-tab', is kept: a
+;; new frame's first tab is named so, and closing the last space leaves
+;; it, or makes it, showing the dashboard.
+
+(defcustom bison-space-home-tab "home"
+  "Name of the plain tab kept for work outside any space."
+  :type 'string)
+
+(defun bison-space--space-tab-p (tab)
+  "Return non-nil if TAB is a space's."
+  (when-let* ((group (alist-get 'group tab)))
+    (string-search "/" group)))
+
+(defun bison-space--home-index (&optional frame)
+  "Return the index of FRAME's home tab, or nil."
+  (cl-position-if (lambda (tab)
+                    (and (not (bison-space--space-tab-p tab))
+                         (equal (alist-get 'name tab) bison-space-home-tab)))
+                  (funcall tab-bar-tabs-function frame)))
+
+(defun bison-space--make-home ()
+  "Make the home tab, showing the dashboard alone, and select it."
+  (let ((inhibit-message t))
+    (tab-bar-new-tab)
+    (tab-bar-rename-tab bison-space-home-tab))
+  ;; As in `bison-space--layout': not from the sidebar, and not into a
+  ;; space's agent window, still dedicated.
+  (when (window-parameter nil 'window-side)
+    (select-window (get-mru-window nil nil t)))
+  (delete-other-windows)
+  (set-window-dedicated-p nil nil)
+  (if (fboundp 'dashboard-open)
+      (dashboard-open)
+    (switch-to-buffer (get-scratch-buffer-create))))
+
+(defun bison-space-home ()
+  "Switch to the home tab, making it if it was closed."
+  (interactive)
+  (if-let* ((index (bison-space--home-index)))
+      (tab-bar-select-tab (1+ index))
+    (bison-space--make-home))
+  (bison-space--sidebar-sync))
+
+(defun bison-space--name-home (&optional frame)
+  "Name FRAME's tab the home tab, if it is its only tab and a plain one.
+FRAME defaults to the selected one.  A frame starts with one tab,
+named after its buffer, and that becomes home.  Never makes a tab or
+switches, since this also runs when emacsclient visits a file in an
+existing frame.  Shows the sidebar too, as a new frame wants it."
+  (let ((frame (or frame (selected-frame))))
+    ;; After the frame is up, as in `bison-space--auto-restore', and
+    ;; before it: this hook is added later, so it runs first.
+    (run-at-time
+     0 nil
+     (lambda ()
+       (when (frame-live-p frame)
+         (with-selected-frame frame
+           (let ((tabs (funcall tab-bar-tabs-function)))
+             (when (and (= (length tabs) 1)
+                        (not (bison-space--space-tab-p (car tabs)))
+                        (not (bison-space--home-index)))
+               (let ((inhibit-message t))
+                 (tab-bar-rename-tab bison-space-home-tab))))
+           (bison-space--sidebar-sync)))))))
 
 (defun bison-space--wt (args on-success)
   "Run wt with ARGS in `default-directory', asynchronously.
@@ -2100,6 +2175,31 @@ FACE, if given, colours it.  Empty without nerd-icons."
             (mapc #'bison-space--sidebar-insert-line rows)))
       (error (message "Sidebar section %s: %s" id (error-message-string err))))))
 
+(defun bison-space--sidebar-tabs ()
+  "Return the Tabs section's rows: one per plain tab, home first."
+  (let ((index 0) rows)
+    (dolist (tab (funcall tab-bar-tabs-function))
+      (unless (bison-space--space-tab-p tab)
+        (let* ((name (alist-get 'name tab))
+               (home (equal name bison-space-home-tab))
+               ;; Rows are redrawn on every change of tab, so the index
+               ;; holds until the row is clicked.
+               (number (1+ index)))
+          (push (list :label name
+                      :icon (bison-space-sidebar-icon
+                             (if home "nf-oct-home" "nf-oct-browser"))
+                      :current (eq (car tab) 'current-tab)
+                      :help (format "%s\nmouse-1: switch to it" name)
+                      :action (lambda () (tab-bar-select-tab number))
+                      :home home)
+                rows)))
+      (cl-incf index))
+    (setq rows (nreverse rows))
+    (append (seq-filter (lambda (row) (plist-get row :home)) rows)
+            (seq-remove (lambda (row) (plist-get row :home)) rows))))
+
+;; Defined first, so it comes first, right under the spaces.
+(bison-space-define-section 'tabs :title "Tabs" :rows #'bison-space--sidebar-tabs)
 (bison-space-define-section 'agents :insert #'bison-space--sidebar-insert-agents)
 
 (defvar bison-space--sidebar-clock nil
@@ -2162,13 +2262,13 @@ follows the current space, so it is there on the next visit."
                  (bison-space--status (car space) (cadr space))))
               (setq count (+ count (length spaces))))))
         (setq bison-space--sidebar-count count)
-        (unless (bobp)
-          (bison-space--sidebar-insert-sections))
         (when (bobp)
           (insert (propertize
                    (substitute-command-keys
-                    " No open spaces.\n\n \\[bison-space-switch] opens one,\n \\[bison-space-help] lists the keys.")
+                    " No open spaces.\n\n \\[bison-space-switch] opens one,\n \\[bison-space-help] lists the keys.\n")
                    'face 'shadow)))
+        ;; With or without spaces: the Tabs section lists home.
+        (bison-space--sidebar-insert-sections)
         (goto-char (point-min))
         (if (eq (get-buffer-window buffer) (selected-window))
             (forward-line (1- line))
@@ -2207,11 +2307,20 @@ resized, as on maximizing, which spreads the change proportionally."
                         `(space :align-to (- right ,(1+ (length count)))))
             (propertize count 'face 'bison-space-sidebar-header))))
 
+(defun bison-space--sidebar-wanted-p ()
+  "Return non-nil if the selected frame should show the sidebar.
+Its `bison-space-sidebar' parameter is `hidden' or t once toggled;
+until then, a graphical frame shows it and a terminal one does not."
+  (pcase (frame-parameter nil 'bison-space-sidebar)
+    ('hidden nil)
+    ('nil (display-graphic-p))
+    (_ t)))
+
 (defun bison-space--sidebar-sync (&rest _)
   "Show or hide the sidebar per this frame's setting, then redraw it.
 Takes and ignores any arguments, so it can run from tab-bar hooks."
   (let ((window (bison-space--sidebar-window)))
-    (cond ((and (frame-parameter nil 'bison-space-sidebar) (not window))
+    (cond ((and (bison-space--sidebar-wanted-p) (not window))
            (set-window-fringes
             (display-buffer-in-side-window
              (bison-space--sidebar-buffer)
@@ -2225,7 +2334,7 @@ Takes and ignores any arguments, so it can run from tab-bar hooks."
             ;; last column free for its `$' truncation mark.  The
             ;; padding itself is left by the row layout.
             0 1))
-          ((and window (not (frame-parameter nil 'bison-space-sidebar)))
+          ((and window (not (bison-space--sidebar-wanted-p)))
            (delete-window window))))
   ;; `window-width' in the display action counts columns of the
   ;; sidebar's own, smaller font; fit to the frame's columns instead.
@@ -2245,7 +2354,7 @@ When the sidebar is shown but not selected, select it."
   (interactive)
   (let ((window (bison-space--sidebar-window)))
     (cond ((and window (eq window (selected-window)))
-           (set-frame-parameter nil 'bison-space-sidebar nil)
+           (set-frame-parameter nil 'bison-space-sidebar 'hidden)
            (bison-space--sidebar-sync))
           (t
            (set-frame-parameter nil 'bison-space-sidebar t)
@@ -2366,11 +2475,14 @@ in a session that outlives Emacs; the agent window is on the right,
 showing one agent at a time, or the launcher while there is none.
 When an agent exits, the window moves on to the next one, or back to
 the launcher; one that fails stays open to show why.
-The sidebar lists the open spaces by org and repo.
+The sidebar lists the open spaces by org and repo, and under Tabs
+every other tab: home, kept for work outside any space, and any made
+with \\[tab-new].
 
 Everywhere
 
   \\[bison-space-switch]	Switch to a space, or open one for any project
+  \\[bison-space-home]	Switch to the home tab, making it if closed
   \\[bison-space]	Open or switch to the current project's space
 	(\\[universal-argument] \\[bison-space]: open it resuming the default agent)
   \\[bison-space-add-agent]	Start an agent: Claude, Codex, or any command
@@ -2464,6 +2576,8 @@ Font size (everywhere)
   (run-at-time 0 nil #'bison-space--sidebar-sync))
 
 (add-hook 'tab-bar-tab-pre-close-functions #'bison-space--sidebar-sync-later)
+;; A plain tab made by hand, as by C-x t 2, joins the Tabs section.
+(add-hook 'tab-bar-tab-post-open-functions #'bison-space--sidebar-sync-later)
 (add-hook 'window-size-change-functions #'bison-space--sidebar-fit)
 
 ;; Save on every close, however the tab went; `bison-space--open' saves
@@ -2473,6 +2587,10 @@ Font size (everywhere)
 (add-hook 'kill-emacs-hook #'bison-space--save-selected)
 (add-hook 'window-setup-hook #'bison-space--auto-restore)
 (add-hook 'server-after-make-frame-hook #'bison-space--auto-restore)
+;; Added after, so run before: the frame's first tab is home before
+;; the restored spaces open beside it.
+(add-hook 'window-setup-hook #'bison-space--name-home)
+(add-hook 'server-after-make-frame-hook #'bison-space--name-home)
 
 (global-set-key (kbd "C-c s") #'bison-space)
 (global-set-key (kbd "C-c S") #'bison-space-close)
@@ -2482,6 +2600,7 @@ Font size (everywhere)
 (global-set-key (kbd "C-c P") #'bison-space-checkout-pr)
 (global-set-key (kbd "C-c R") #'bison-space-reset)
 (global-set-key (kbd "C-c f") #'bison-space-switch)
+(global-set-key (kbd "C-c h") #'bison-space-home)
 (global-set-key (kbd "C-c ?") #'bison-space-help)
 (global-set-key (kbd "C-c a") #'bison-space-add-agent)
 
